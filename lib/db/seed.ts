@@ -120,7 +120,8 @@ async function seed() {
             const [newUser] = await db.insert(users).values({
                 email: demoEmail,
                 credits: 1000,
-                passwordHash: passwordHash
+                passwordHash: passwordHash,
+                isAdmin: true
             }).returning();
             demoUser = newUser;
             console.log(`Created demo user: ${demoUser.id}`);

@@ -218,7 +218,8 @@ Convert the following Input into the optimized Output format.`;
             loadSettings(); // Reload list
         } catch (error) {
             console.error("Failed to save model:", error);
-            alert("Failed to save model.");
+            const message = error instanceof Error ? error.message : "Failed to save model.";
+            alert(message);
         }
     };
 
@@ -240,6 +241,8 @@ Convert the following Input into the optimized Output format.`;
             loadSettings();
         } catch (error) {
             console.error("Failed to set default model:", error);
+            const message = error instanceof Error ? error.message : "Failed to set default model.";
+            alert(message);
         }
     };
 

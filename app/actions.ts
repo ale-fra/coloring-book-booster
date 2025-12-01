@@ -39,6 +39,14 @@ async function getCurrentUser() {
     return user;
 }
 
+async function requireAdmin() {
+    const user = await getCurrentUser();
+    if (!user.isAdmin) {
+        throw new Error('Not authorized');
+    }
+    return user;
+}
+
 export async function authenticate(
     prevState: string | undefined,
     formData: FormData,
@@ -189,6 +197,7 @@ export async function getModels(): Promise<ModelConfig[]> {
 }
 
 export async function addModel(model: Omit<ModelConfig, 'id'>) {
+    await requireAdmin();
     // Models are global (app_models), so we don't need userId.
     // But we should probably restrict this to admin users in future.
 
@@ -220,6 +229,7 @@ export async function addModel(model: Omit<ModelConfig, 'id'>) {
 }
 
 export async function updateModel(model: ModelConfig) {
+    await requireAdmin();
     if (model.isDefault) {
         await db.update(appModels)
             .set({ isDefault: false })
@@ -242,6 +252,7 @@ export async function updateModel(model: ModelConfig) {
 }
 
 export async function setDefaultModel(id: string) {
+    await requireAdmin();
     const modelToSet = await db.query.appModels.findFirst({ where: eq(appModels.id, id) });
     if (!modelToSet) return;
 
@@ -257,6 +268,7 @@ export async function setDefaultModel(id: string) {
 }
 
 export async function deleteModel(id: string) {
+    await requireAdmin();
     const model = await db.query.appModels.findFirst({ where: eq(appModels.id, id) });
     if (model?.isDefault) {
         throw new Error("Cannot delete the default model.");
