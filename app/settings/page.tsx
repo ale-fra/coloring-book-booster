@@ -4,10 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Trash2, Save, Edit2, X, Sun, Moon, Monitor, Check, ShieldAlert } from 'lucide-react';
 import {
-    getApiKey,
-    saveApiKey,
-    getReplicateApiKey,
-    saveReplicateApiKey,
     getModels,
     addModel,
     updateModel,
@@ -72,8 +68,7 @@ const SettingsItem = ({ label, description, children, layout = 'row', className 
 export default function SettingsPage() {
     const router = useRouter();
     const { theme, setTheme } = useTheme();
-    const [apiKey, setApiKey] = useState('');
-    const [replicateApiKey, setReplicateApiKey] = useState('');
+
     const [enhancementPrompt, setEnhancementPrompt] = useState('');
     const [enhancementTemperature, setEnhancementTemperature] = useState(0.3);
     const [enhancementThinking, setEnhancementThinking] = useState(false);
@@ -100,8 +95,7 @@ export default function SettingsPage() {
     const loadSettings = async () => {
         try {
             await initializeDefaultModels();
-            const key = await getApiKey();
-            const repKey = await getReplicateApiKey();
+            await initializeDefaultModels();
             const loadedModels = await getModels();
             const prompt = await getEnhancementPrompt();
             const enhSettings = await getEnhancementSettings();
@@ -109,8 +103,6 @@ export default function SettingsPage() {
             const currentCredits = await getCredits();
 
 
-            if (key) setApiKey(key);
-            if (repKey) setReplicateApiKey(repKey);
             setModels(loadedModels);
             if (prompt) {
                 setEnhancementPrompt(prompt);
@@ -129,30 +121,8 @@ export default function SettingsPage() {
         }
     };
 
-    const handleSaveApiKey = async () => {
-        setIsSavingKey(true);
-        try {
-            await saveApiKey(apiKey);
-            // Optional: Show a toast or success message
-        } catch (error) {
-            console.error("Failed to save API key:", error);
-            alert('Failed to save API key.');
-        } finally {
-            setIsSavingKey(false);
-        }
-    };
+    // API Key saving handlers removed as keys are managed via env vars
 
-    const handleSaveReplicateApiKey = async () => {
-        setIsSavingReplicateKey(true);
-        try {
-            await saveReplicateApiKey(replicateApiKey);
-        } catch (error) {
-            console.error("Failed to save Replicate API key:", error);
-            alert('Failed to save Replicate API key.');
-        } finally {
-            setIsSavingReplicateKey(false);
-        }
-    };
 
     const getDefaultEnhancementPrompt = () => {
         return `### SYSTEM ROLE ###
@@ -371,50 +341,7 @@ Convert the following Input into the optimized Output format.`;
                     </SettingsItem>
                 </SettingsSection>
 
-                {/* API Key */}
-                <SettingsSection title="API Keys" description="Manage your API keys for different providers.">
-                    <SettingsItem label="Gemini API Key" description="Required for accessing Gemini models." layout="col">
-                        <div className="flex gap-4">
-                            <input
-                                type="password"
-                                value={apiKey}
-                                onChange={(e) => setApiKey(e.target.value)}
-                                placeholder="Enter your Gemini API Key"
-                                className="flex-1 bg-background border border-border rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                            <button
-                                onClick={handleSaveApiKey}
-                                disabled={isSavingKey}
-                                className="bg-primary text-primary-foreground px-6 py-2 rounded-md hover:opacity-90 transition-opacity flex items-center gap-2 font-medium"
-                            >
-                                {isSavingKey ? <span className="animate-spin">⏳</span> : <Save size={18} />}
-                                {isSavingKey ? 'Saving...' : 'Save'}
-                            </button>
-                        </div>
-                    </SettingsItem>
 
-                    <div className="h-px bg-border my-6" />
-
-                    <SettingsItem label="Replicate API Key" description="Required for accessing Replicate models (e.g., Flux)." layout="col">
-                        <div className="flex gap-4">
-                            <input
-                                type="password"
-                                value={replicateApiKey}
-                                onChange={(e) => setReplicateApiKey(e.target.value)}
-                                placeholder="Enter your Replicate API Key"
-                                className="flex-1 bg-background border border-border rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                            <button
-                                onClick={handleSaveReplicateApiKey}
-                                disabled={isSavingReplicateKey}
-                                className="bg-primary text-primary-foreground px-6 py-2 rounded-md hover:opacity-90 transition-opacity flex items-center gap-2 font-medium"
-                            >
-                                {isSavingReplicateKey ? <span className="animate-spin">⏳</span> : <Save size={18} />}
-                                {isSavingReplicateKey ? 'Saving...' : 'Save'}
-                            </button>
-                        </div>
-                    </SettingsItem>
-                </SettingsSection>
 
                 {/* Credits */}
                 <SettingsSection title="Credits" description="Manage your available credits for image generation.">

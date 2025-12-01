@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import mime from "mime";
-import Replicate from "replicate";
+import { generateImageWithReplicateAction } from "../app/actions";
 import { RateLimiter } from "./rate-limiter";
 
 export interface GenerationResult {
@@ -12,9 +12,9 @@ export interface GenerationResult {
     selectedVariantIndex?: number;
 }
 
-export class GeminiService {
+export class GenerationService {
     private client: GoogleGenAI;
-    private replicate?: Replicate;
+    private replicateApiKey?: string;
     private modelName: string;
     private rateLimiter: RateLimiter;
     private temperature?: number;
@@ -25,9 +25,7 @@ export class GeminiService {
 
     constructor(apiKey: string, modelName: string, requestsPerMinute: number, temperature?: number, topP?: number, aspectRatio?: string, provider: 'gemini' | 'replicate' = 'gemini', replicateApiKey?: string, config?: any) {
         this.client = new GoogleGenAI({ apiKey });
-        if (replicateApiKey) {
-            this.replicate = new Replicate({ auth: replicateApiKey });
-        }
+        this.replicateApiKey = replicateApiKey;
         this.modelName = modelName;
         this.temperature = temperature;
         this.topP = topP;
@@ -98,7 +96,7 @@ export class GeminiService {
                 }
 
             } catch (error: any) {
-                console.error(`Gemini Generation Error (Attempt ${attempt + 1}/${maxRetries}):`, error);
+                console.error(`Generation Error (Attempt ${attempt + 1}/${maxRetries}):`, error);
 
                 const errorMessage = error.message || "";
                 if (errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
@@ -114,11 +112,27 @@ export class GeminiService {
             }
         }
 
-        return { prompt, error: "Max retries exceeded for Gemini generation." };
+        return { prompt, error: "Max retries exceeded for generation." };
     }
 
     private async generateWithReplicate(prompt: string): Promise<GenerationResult> {
-        if (!this.replicate) {
+        // We need the API key to be passed to the server action
+        // Since we don't store it in the class anymore (as it was for the client), 
+        // we might need to pass it or rely on the server action to pick it up if it's an env var.
+        // However, the constructor still accepts replicateApiKey.
+        // Let's store it in a private property if needed, or better, just use the one passed to constructor if we saved it.
+        // Wait, I removed the property. I should keep the property but as a string, not a Replicate instance.
+
+        // Actually, let's look at how I modified the constructor. I removed the initialization of this.replicate.
+        // I should probably store the key.
+
+        // Let's assume I'll add a private replicateApiKey property in a separate edit or just use the one from config if available?
+        // No, the constructor takes `replicateApiKey`. I should store it.
+
+        // For now, let's implement this method assuming I have access to the key. 
+        // I will add the property back in a moment.
+
+        if (!this.replicateApiKey) {
             return { prompt, error: "Replicate API key not configured." };
         }
 
@@ -143,37 +157,14 @@ export class GeminiService {
                 input.output_quality = 80;
             }
 
-            const output = await this.replicate.run(this.modelName as any, { input });
+            const result = await generateImageWithReplicateAction(this.replicateApiKey, this.modelName, input);
 
-            let imageUrl: string | undefined;
-
-            if (Array.isArray(output)) {
-                // It's likely an array of URLs
-                const firstItem = output[0];
-                if (typeof firstItem === 'string') {
-                    imageUrl = firstItem;
-                } else if (firstItem && typeof firstItem === 'object' && 'url' in firstItem) {
-                    // Maybe a file object
-                    imageUrl = (firstItem as any).url().toString();
-                }
-            } else if (typeof output === 'string') {
-                imageUrl = output;
-            } else if (output && typeof output === 'object' && 'url' in output) {
-                imageUrl = (output as any).url().toString();
-            } else {
-                // Fallback for stream or unknown
-                console.log("Unknown Replicate output format:", output);
-                return { prompt, error: "Unknown output format from Replicate" };
+            if (result.error) {
+                return { prompt, error: result.error };
             }
 
-            if (imageUrl) {
-                const imageResponse = await fetch(imageUrl);
-                const arrayBuffer = await imageResponse.arrayBuffer();
-                const base64 = Buffer.from(arrayBuffer).toString('base64');
-                const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
-                const dataUri = `data:${mimeType};base64,${base64}`;
-
-                return { prompt, imageUrl: dataUri };
+            if (result.imageUrl) {
+                return { prompt, imageUrl: result.imageUrl };
             } else {
                 return { prompt, error: "No image URL received from Replicate" };
             }

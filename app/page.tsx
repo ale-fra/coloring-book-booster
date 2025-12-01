@@ -5,9 +5,20 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { PresetManager } from '../components/PresetManager';
 import { PromptInput } from '../components/PromptInput';
 import { PromptList } from '../components/PromptList';
-import { GeminiService, type GenerationResult } from '../lib/gemini';
-import { type Preset, type ModelConfig, addHistoryItem, type HistoryItem, updateHistoryItem, getHistory } from '../lib/db';
-import { getApiKey, getReplicateApiKey, getModels, initializeDefaultModels, getAspectRatio, getCredits, saveCredits } from '../app/actions';
+import { GenerationService, type GenerationResult } from '../lib/generation';
+import { type Preset, type ModelConfig, type HistoryItem } from '../lib/db';
+import {
+  getApiKey,
+  getReplicateApiKey,
+  getModels,
+  initializeDefaultModels,
+  getAspectRatio,
+  getCredits,
+  saveCredits,
+  addHistoryItem,
+  updateHistoryItem,
+  getHistory
+} from '../app/actions';
 import { Sparkles, Palette, Coins } from 'lucide-react';
 
 function HomeContent() {
@@ -175,7 +186,7 @@ function HomeContent() {
 
     const tpm = selectedModel.tpm || 20;
     const batchSize = Math.min(Math.floor(tpm / 2), 100);
-    const service = new GeminiService(apiKey || '', selectedModel.name, tpm, selectedModel.temperature, selectedModel.topP, aspectRatio, selectedModel.provider, replicateApiKey, selectedModel.config);
+    const service = new GenerationService(apiKey || '', selectedModel.name, tpm, selectedModel.temperature, selectedModel.topP, aspectRatio, selectedModel.provider, replicateApiKey, selectedModel.config);
 
 
     let allResults: GenerationResult[] = new Array(prompts.length).fill(null).map((_, i) => ({ prompt: prompts[i], isLoading: true }));
@@ -275,7 +286,7 @@ function HomeContent() {
     setIsGenerating(true);
 
     try {
-      const service = new GeminiService(apiKey, textModel.name, textModel.tpm || 60);
+      const service = new GenerationService(apiKey, textModel.name, textModel.tpm || 60);
       const enhancedPrompts: string[] = [];
 
       // Process prompts one by one to show progress
@@ -362,7 +373,7 @@ Convert the following Input into the optimized Output format.`;
       return newResults;
     });
 
-    const service = new GeminiService(apiKey || '', selectedModel.name, selectedModel.tpm, selectedModel.temperature, selectedModel.topP, aspectRatio, selectedModel.provider, replicateApiKey, selectedModel.config);
+    const service = new GenerationService(apiKey || '', selectedModel.name, selectedModel.tpm, selectedModel.temperature, selectedModel.topP, aspectRatio, selectedModel.provider, replicateApiKey, selectedModel.config);
 
     try {
       const result = await service.generateImage(newPrompt, isPresetEnabled && selectedPreset ? selectedPreset.prompt : undefined);
