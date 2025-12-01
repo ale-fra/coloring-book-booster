@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db/drizzle';
 import { appModels, appSettings, users, userSettings, userHistory, userPresets } from '@/lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { ModelConfig, Preset, HistoryItem, GenerationResult } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import Replicate from "replicate";
@@ -309,15 +309,26 @@ export async function addPreset(preset: Omit<Preset, 'id' | 'createdAt' | 'userI
 
 export async function deletePreset(id: string) {
     const user = await getCurrentUser();
-    await db.delete(userPresets).where(eq(userPresets.id, id)); // Should also check userId for security
+    const deleted = await db.delete(userPresets)
+        .where(and(eq(userPresets.id, id), eq(userPresets.userId, user.id)))
+        .returning();
+
+    if (deleted.length === 0) {
+        throw new Error('Preset not found');
+    }
     revalidatePath('/');
 }
 
 export async function updatePreset(preset: Preset) {
     const user = await getCurrentUser();
-    await db.update(userPresets)
+    const updated = await db.update(userPresets)
         .set({ title: preset.title, prompt: preset.prompt })
-        .where(eq(userPresets.id, preset.id));
+        .where(and(eq(userPresets.id, preset.id), eq(userPresets.userId, user.id)))
+        .returning();
+
+    if (updated.length === 0) {
+        throw new Error('Preset not found');
+    }
     revalidatePath('/');
 }
 
@@ -352,19 +363,30 @@ export async function getHistory() {
 
 export async function updateHistoryItem(item: Omit<HistoryItem, 'userId'>) {
     const user = await getCurrentUser();
-    await db.update(userHistory)
+    const updated = await db.update(userHistory)
         .set({
             presetName: item.presetName,
             modelName: item.modelName,
             results: item.results,
             timestamp: new Date(item.timestamp)
         })
-        .where(eq(userHistory.id, item.id));
+        .where(and(eq(userHistory.id, item.id), eq(userHistory.userId, user.id)))
+        .returning();
+
+    if (updated.length === 0) {
+        throw new Error('History item not found');
+    }
 }
 
 export async function deleteHistoryItem(id: string) {
     const user = await getCurrentUser();
-    await db.delete(userHistory).where(eq(userHistory.id, id));
+    const deleted = await db.delete(userHistory)
+        .where(and(eq(userHistory.id, id), eq(userHistory.userId, user.id)))
+        .returning();
+
+    if (deleted.length === 0) {
+        throw new Error('History item not found');
+    }
 }
 
 export async function clearHistory() {
