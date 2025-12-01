@@ -103,7 +103,7 @@ export async function registerUser(prevState: string | undefined, formData: Form
 }
 
 export async function logout() {
-    await signOut();
+    await signOut({ redirectTo: '/login' });
 }
 
 // Settings Actions

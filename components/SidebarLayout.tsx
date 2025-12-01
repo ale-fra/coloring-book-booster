@@ -1,20 +1,22 @@
 "use client";
 
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { AppSidebar } from './AppSidebar';
 import { cn } from '../lib/utils';
 import { usePathname } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 
-export function SidebarLayout({ children }: { children: React.ReactNode }) {
+export function SidebarLayout({ children }: { children: ReactNode }) {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const pathname = usePathname();
+    const { status } = useSession();
     const isAuthPage = pathname?.startsWith('/login') || pathname?.startsWith('/register');
+    const isProfilePage = pathname?.startsWith('/user');
+    const shouldHideSidebar = isAuthPage || status !== 'authenticated';
 
-    console.log('[SidebarLayout] Pathname:', pathname);
-    console.log('[SidebarLayout] isAuthPage:', isAuthPage);
-
-    if (isAuthPage) {
-        return <>{children}</>;
+    if (shouldHideSidebar || isProfilePage) {
+        return <div className="min-h-screen bg-background text-foreground">{children}</div>;
     }
 
     return (
