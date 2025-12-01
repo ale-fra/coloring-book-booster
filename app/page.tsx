@@ -6,8 +6,19 @@ import { PresetManager } from '../components/PresetManager';
 import { PromptInput } from '../components/PromptInput';
 import { PromptList } from '../components/PromptList';
 import { GeminiService, type GenerationResult } from '../lib/gemini';
-import { type Preset, type ModelConfig, addHistoryItem, type HistoryItem, updateHistoryItem, getHistory } from '../lib/db';
-import { getApiKey, getReplicateApiKey, getModels, initializeDefaultModels, getAspectRatio, getCredits, saveCredits } from '../app/actions';
+import { type Preset, type ModelConfig, type HistoryItem } from '../lib/db';
+import {
+  getApiKey,
+  getReplicateApiKey,
+  getModels,
+  initializeDefaultModels,
+  getAspectRatio,
+  getCredits,
+  saveCredits,
+  addHistoryItem,
+  updateHistoryItem,
+  getHistory
+} from '../app/actions';
 import { Sparkles, Palette, Coins } from 'lucide-react';
 
 function HomeContent() {
