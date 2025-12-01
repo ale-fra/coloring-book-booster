@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Contributor Guidelines (Global)
 
 This repository now has a root-level `AGENTS.md`. It applies to all files unless a nested `AGENTS.md` exists within a subdirectory, in which case the nested file’s rules take precedence for that subtree. For example, `components/AGENTS.md` would override relevant guidance for files in `components/`, while this root file would still govern `lib/` and other areas without their own file.
