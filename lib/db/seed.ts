@@ -114,14 +114,25 @@ async function seed() {
 
         if (!demoUser) {
             console.log('Creating demo user...');
+            const bcrypt = await import('bcryptjs');
+            const passwordHash = await bcrypt.hash('password123', 10);
+
             const [newUser] = await db.insert(users).values({
                 email: demoEmail,
-                credits: 1000
+                credits: 1000,
+                passwordHash: passwordHash
             }).returning();
             demoUser = newUser;
             console.log(`Created demo user: ${demoUser.id}`);
         } else {
             console.log(`Demo user already exists: ${demoUser.id}`);
+            // Update password if it's missing (migration path)
+            if (!demoUser.passwordHash) {
+                console.log('Updating demo user password...');
+                const bcrypt = await import('bcryptjs');
+                const passwordHash = await bcrypt.hash('password123', 10);
+                await db.update(users).set({ passwordHash }).where(eq(users.id, demoUser.id));
+            }
         }
 
         // Seed User Settings for Demo User

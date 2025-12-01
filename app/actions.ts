@@ -20,14 +20,82 @@ export async function logAIInteraction(level: 'info' | 'error', message: string,
     }
 }
 
-// Helper to get current user (Hardcoded Demo User for now)
+import { auth, signIn, signOut } from '@/auth';
+import { AuthError } from 'next-auth';
+import bcrypt from 'bcryptjs';
+
+// Helper to get current user
 async function getCurrentUser() {
-    const demoEmail = 'demo@example.com';
+    const session = await auth();
+    if (!session?.user?.email) {
+        throw new Error('Not authenticated');
+    }
+
     const user = await db.query.users.findFirst({
-        where: eq(users.email, demoEmail)
+        where: eq(users.email, session.user.email)
     });
-    if (!user) throw new Error('Demo user not found');
+
+    if (!user) throw new Error('User not found');
     return user;
+}
+
+export async function authenticate(
+    prevState: string | undefined,
+    formData: FormData,
+) {
+    try {
+        await signIn('credentials', formData);
+    } catch (error) {
+        if (error instanceof AuthError) {
+            switch (error.type) {
+                case 'CredentialsSignin':
+                    return 'Invalid credentials.';
+                default:
+                    return 'Something went wrong.';
+            }
+        }
+        throw error;
+    }
+}
+
+export async function registerUser(prevState: string | undefined, formData: FormData) {
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+
+    if (!email || !password) {
+        return 'Please provide all fields.';
+    }
+
+    const existingUser = await db.query.users.findFirst({
+        where: eq(users.email, email)
+    });
+
+    if (existingUser) {
+        return 'User already exists.';
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const defaultCredits = (await db.query.appSettings.findFirst())?.defaultCredits || 250;
+
+    const [newUser] = await db.insert(users).values({
+        email,
+        passwordHash,
+        credits: defaultCredits
+    }).returning();
+
+    // Initialize settings
+    await db.insert(userSettings).values({
+        userId: newUser.id,
+        modelPreferences: {}
+    });
+
+    // We can't automatically sign in with credentials provider in server action easily without redirecting to login
+    // or using a client-side flow. For simplicity, we'll redirect to login.
+    return 'success';
+}
+
+export async function logout() {
+    await signOut();
 }
 
 // Settings Actions

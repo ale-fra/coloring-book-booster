@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, History, Settings, Palette, ChevronLeft, ChevronRight, Coins } from 'lucide-react';
+import { Home, History, Settings, Palette, ChevronLeft, ChevronRight, Coins, User } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useEffect, useState } from 'react';
 import { getCredits } from '../app/actions';
@@ -17,8 +17,13 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
     const [credits, setCredits] = useState<number | null>(null);
 
     const loadCredits = async () => {
-        const c = await getCredits();
-        setCredits(c);
+        try {
+            const c = await getCredits();
+            setCredits(c);
+        } catch (error) {
+            console.error('[AppSidebar] Failed to load credits:', error);
+            setCredits(0);
+        }
     };
 
     useEffect(() => {
@@ -36,6 +41,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
         { href: '/', label: 'Generate', icon: Home },
         { href: '/history', label: 'History', icon: History },
         { href: '/settings', label: 'Settings', icon: Settings },
+        { href: '/user', label: 'Profile', icon: User },
     ];
 
     return (
