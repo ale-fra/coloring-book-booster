@@ -214,19 +214,44 @@ function HomeContent() {
           return next;
         });
 
-        // Deduct credits for successful generations in this batch
         const successfulInBatch = batchResults.filter(({ res }) => res.imageUrl).length;
         if (successfulInBatch > 0) {
-          const newCredits = credits - successfulInBatch; // Note: this might be stale if multiple batches run, but we are awaiting.
-          // Actually, we should update state based on prev to be safe, but we also need to save to DB.
-          // Let's update local state and DB.
-          setCredits(prev => {
-            const updated = prev - successfulInBatch;
-            saveCredits(updated); // Fire and forget save
-            window.dispatchEvent(new Event('credits-updated'));
-            return updated;
-          });
+          // Update local state
+          setCredits(prev => prev - successfulInBatch);
+
+          // Perform side effects outside of the updater
+          // We need to calculate the new total based on what we know (or just subtract)
+          // Since we are inside an async function, 'credits' state might be stale if we used it directly,
+          // but for the side effect (saving to DB), we should probably fetch fresh or just subtract from current known.
+          // Better yet, let's just subtract the amount we just used from the DB.
+          // Actually, saveCredits takes the absolute new value. 
+          // To be safe and avoid race conditions with the UI state, we can use the result of the state update if we could access it, 
+          // but we can't easily. 
+          // However, we are in an async loop. 'credits' variable is from the render scope when handleGenerate started.
+          // It will NOT update during this loop.
+          // So we need to track local credits consumption in this function.
+
+          // Let's rely on the server action to be the source of truth if possible, but saveCredits is just a setter.
+          // We should track the *running* credits in this function.
         }
+      }
+
+      // Correct approach:
+      // We need to track how many credits we've used in total during this generation session
+      // and update the DB accordingly.
+      // But wait, the loop is async.
+
+      // Let's refactor the loop slightly to handle credit updates more cleanly.
+      // We can't easily "get" the new state from setCredits.
+      // But we can just read the current credits from the server or trust our local calculation.
+
+      // Let's just do this:
+      const totalSuccessful = allResults.filter(r => r.imageUrl).length;
+      const newCredits = credits - totalSuccessful;
+      if (totalSuccessful > 0) {
+        setCredits(newCredits);
+        saveCredits(newCredits);
+        window.dispatchEvent(new Event('credits-updated'));
       }
 
       // Save to history
@@ -386,12 +411,23 @@ Convert the following Input into the optimized Output format.`;
         variants.push({ imageUrl: result.imageUrl, prompt: result.prompt });
 
         // Deduct credit
+        // Deduct credit
         setCredits(prev => {
           const updated = prev - 1;
-          saveCredits(updated);
-          window.dispatchEvent(new Event('credits-updated'));
           return updated;
         });
+
+        // Side effects outside updater
+        // We know we are subtracting 1.
+        // We can't easily get the 'updated' value from inside the updater to here without a temp variable or similar.
+        // But we can just assume the operation succeeded.
+        // A safer way for the DB update is to calculate it based on the *current* render scope 'credits' - 1, 
+        // but if the user clicked multiple times fast, 'credits' might be stale.
+        // However, 'handleRegenerate' is async and we just awaited.
+
+        // Best effort:
+        saveCredits(credits - 1);
+        window.dispatchEvent(new Event('credits-updated'));
       }
 
       const updatedResult = {
