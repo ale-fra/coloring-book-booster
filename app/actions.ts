@@ -2,11 +2,12 @@
 
 import { db } from '@/lib/db/drizzle';
 import { appModels, appSettings, users, userSettings, userHistory, userPresets } from '@/lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { ModelConfig, Preset, HistoryItem, GenerationResult } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import Replicate from "replicate";
 import serverLogger from '@/lib/server-logger';
+import { z } from 'zod';
 
 export async function logAIInteraction(level: 'info' | 'error', message: string, meta?: any) {
     try {
@@ -20,14 +21,197 @@ export async function logAIInteraction(level: 'info' | 'error', message: string,
     }
 }
 
-// Helper to get current user (Hardcoded Demo User for now)
+import { auth, signIn, signOut } from '@/auth';
+import { AuthError } from 'next-auth';
+import bcrypt from 'bcryptjs';
+
+// Helper to get current user
 async function getCurrentUser() {
-    const demoEmail = 'demo@example.com';
-    const user = await db.query.users.findFirst({
-        where: eq(users.email, demoEmail)
-    });
-    if (!user) throw new Error('Demo user not found');
+    const session = await auth();
+    const sessionUser = session?.user as { id?: string; email?: string } | undefined;
+
+    if (!sessionUser) {
+        throw new Error('Not authenticated');
+    }
+
+    const user = sessionUser.id
+        ? await db.query.users.findFirst({
+            where: eq(users.id, sessionUser.id)
+        })
+        : sessionUser.email
+            ? await db.query.users.findFirst({
+                where: eq(users.email, sessionUser.email)
+            })
+            : null;
+
+    if (!user) throw new Error('User not found');
     return user;
+}
+
+async function requireAdmin() {
+    const user = await getCurrentUser();
+    if (!user.isAdmin) {
+        throw new Error('Not authorized');
+    }
+    return user;
+}
+
+export async function authenticate(
+    prevState: string | undefined,
+    formData: FormData,
+) {
+    try {
+        await signIn('credentials', Object.assign({}, Object.fromEntries(formData), { redirectTo: '/' }));
+        return 'success';
+    } catch (error) {
+        if (error instanceof AuthError) {
+            switch (error.type) {
+                case 'CredentialsSignin':
+                    return 'Invalid credentials.';
+                default:
+                    return 'Something went wrong.';
+            }
+        }
+        throw error;
+    }
+}
+
+export async function registerUser(prevState: string | undefined, formData: FormData) {
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+
+    if (!email || !password) {
+        return 'Please provide all fields.';
+    }
+
+    const existingUser = await db.query.users.findFirst({
+        where: eq(users.email, email)
+    });
+
+    if (existingUser) {
+        return 'User already exists.';
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const defaultCredits = (await db.query.appSettings.findFirst())?.defaultCredits || 250;
+
+    const [newUser] = await db.insert(users).values({
+        email,
+        passwordHash,
+        credits: defaultCredits
+    }).returning();
+
+    // Initialize settings
+    await db.insert(userSettings).values({
+        userId: newUser.id,
+        modelPreferences: {}
+    });
+
+    // We can't automatically sign in with credentials provider in server action easily without redirecting to login
+    // or using a client-side flow. For simplicity, we'll redirect to login.
+    return 'success';
+}
+
+export async function logout() {
+    await signOut({ redirectTo: '/login' });
+}
+
+export type AccountActionState = {
+    status: 'idle' | 'success' | 'error';
+    message: string;
+};
+
+export async function updateEmailAddress(prevState: AccountActionState, formData: FormData): Promise<AccountActionState> {
+    try {
+        const user = await getCurrentUser();
+        const newEmail = (formData.get('email') as string | null)?.trim();
+        const password = formData.get('password') as string | null;
+
+        if (!newEmail || !password) {
+            return { status: 'error', message: 'Email and password are required.' };
+        }
+
+        const parsedEmail = z.string().email().safeParse(newEmail);
+        if (!parsedEmail.success) {
+            return { status: 'error', message: 'Enter a valid email address.' };
+        }
+
+        if (!user.passwordHash) {
+            return { status: 'error', message: 'This account cannot change email without a password set.' };
+        }
+
+        const passwordValid = await bcrypt.compare(password, user.passwordHash);
+        if (!passwordValid) {
+            return { status: 'error', message: 'Incorrect password. Please try again.' };
+        }
+
+        if (parsedEmail.data === user.email) {
+            return { status: 'error', message: 'Use a different email than your current one.' };
+        }
+
+        const emailInUse = await db.query.users.findFirst({
+            where: eq(users.email, parsedEmail.data)
+        });
+
+        if (emailInUse) {
+            return { status: 'error', message: 'That email is already in use.' };
+        }
+
+        await db.update(users)
+            .set({ email: parsedEmail.data, updatedAt: new Date() })
+            .where(eq(users.id, user.id));
+
+        revalidatePath('/user');
+        return { status: 'success', message: 'Email updated. You may need to sign in again for changes to show everywhere.' };
+    } catch (error) {
+        console.error('Failed to update email:', error);
+        return { status: 'error', message: 'Could not update email right now. Please try again.' };
+    }
+}
+
+export async function changePassword(prevState: AccountActionState, formData: FormData): Promise<AccountActionState> {
+    try {
+        const user = await getCurrentUser();
+        const currentPassword = formData.get('currentPassword') as string | null;
+        const newPassword = formData.get('newPassword') as string | null;
+        const confirmPassword = formData.get('confirmPassword') as string | null;
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            return { status: 'error', message: 'Fill out all password fields.' };
+        }
+
+        if (!user.passwordHash) {
+            return { status: 'error', message: 'This account does not have a password set.' };
+        }
+
+        const matches = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!matches) {
+            return { status: 'error', message: 'Current password is incorrect.' };
+        }
+
+        if (newPassword !== confirmPassword) {
+            return { status: 'error', message: 'New passwords do not match.' };
+        }
+
+        if (newPassword.length < 6) {
+            return { status: 'error', message: 'Choose a password with at least 6 characters.' };
+        }
+
+        if (newPassword === currentPassword) {
+            return { status: 'error', message: 'New password must be different from the current one.' };
+        }
+
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+        await db.update(users)
+            .set({ passwordHash, updatedAt: new Date() })
+            .where(eq(users.id, user.id));
+
+        revalidatePath('/user');
+        return { status: 'success', message: 'Password updated successfully.' };
+    } catch (error) {
+        console.error('Failed to change password:', error);
+        return { status: 'error', message: 'Could not change password right now. Please try again.' };
+    }
 }
 
 // Settings Actions
@@ -121,6 +305,7 @@ export async function getModels(): Promise<ModelConfig[]> {
 }
 
 export async function addModel(model: Omit<ModelConfig, 'id'>) {
+    await requireAdmin();
     // Models are global (app_models), so we don't need userId.
     // But we should probably restrict this to admin users in future.
 
@@ -152,6 +337,7 @@ export async function addModel(model: Omit<ModelConfig, 'id'>) {
 }
 
 export async function updateModel(model: ModelConfig) {
+    await requireAdmin();
     if (model.isDefault) {
         await db.update(appModels)
             .set({ isDefault: false })
@@ -174,6 +360,7 @@ export async function updateModel(model: ModelConfig) {
 }
 
 export async function setDefaultModel(id: string) {
+    await requireAdmin();
     const modelToSet = await db.query.appModels.findFirst({ where: eq(appModels.id, id) });
     if (!modelToSet) return;
 
@@ -189,6 +376,7 @@ export async function setDefaultModel(id: string) {
 }
 
 export async function deleteModel(id: string) {
+    await requireAdmin();
     const model = await db.query.appModels.findFirst({ where: eq(appModels.id, id) });
     if (model?.isDefault) {
         throw new Error("Cannot delete the default model.");
@@ -229,15 +417,26 @@ export async function addPreset(preset: Omit<Preset, 'id' | 'createdAt' | 'userI
 
 export async function deletePreset(id: string) {
     const user = await getCurrentUser();
-    await db.delete(userPresets).where(eq(userPresets.id, id)); // Should also check userId for security
+    const deleted = await db.delete(userPresets)
+        .where(and(eq(userPresets.id, id), eq(userPresets.userId, user.id)))
+        .returning();
+
+    if (deleted.length === 0) {
+        throw new Error('Preset not found');
+    }
     revalidatePath('/');
 }
 
 export async function updatePreset(preset: Preset) {
     const user = await getCurrentUser();
-    await db.update(userPresets)
+    const updated = await db.update(userPresets)
         .set({ title: preset.title, prompt: preset.prompt })
-        .where(eq(userPresets.id, preset.id));
+        .where(and(eq(userPresets.id, preset.id), eq(userPresets.userId, user.id)))
+        .returning();
+
+    if (updated.length === 0) {
+        throw new Error('Preset not found');
+    }
     revalidatePath('/');
 }
 
@@ -272,19 +471,30 @@ export async function getHistory() {
 
 export async function updateHistoryItem(item: Omit<HistoryItem, 'userId'>) {
     const user = await getCurrentUser();
-    await db.update(userHistory)
+    const updated = await db.update(userHistory)
         .set({
             presetName: item.presetName,
             modelName: item.modelName,
             results: item.results,
             timestamp: new Date(item.timestamp)
         })
-        .where(eq(userHistory.id, item.id));
+        .where(and(eq(userHistory.id, item.id), eq(userHistory.userId, user.id)))
+        .returning();
+
+    if (updated.length === 0) {
+        throw new Error('History item not found');
+    }
 }
 
 export async function deleteHistoryItem(id: string) {
     const user = await getCurrentUser();
-    await db.delete(userHistory).where(eq(userHistory.id, id));
+    const deleted = await db.delete(userHistory)
+        .where(and(eq(userHistory.id, id), eq(userHistory.userId, user.id)))
+        .returning();
+
+    if (deleted.length === 0) {
+        throw new Error('History item not found');
+    }
 }
 
 export async function clearHistory() {
@@ -338,4 +548,3 @@ export async function generateImageWithReplicateAction(
         return { error: error.message || "Unknown Replicate error" };
     }
 }
-
