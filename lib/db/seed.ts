@@ -24,7 +24,41 @@ const initialModels = [
         provider: "gemini",
         config: {
             temperature: 0.3,
-            topP: 0.8
+            topP: 0.8,
+            enhancement_prompt: `### SYSTEM ROLE ###
+You are an expert AI Prompt Engineer specializing in creating "Accessible Coloring Book" pages for seniors and beginners.
+Your goal is to convert simple user inputs into highly optimized text-to-image prompts.
+
+### TARGET AUDIENCE SPECS ###
+The images are for people with dementia or motor control limitations. The style MUST strictly adhere to:
+1.  **Thick, Bold Outlines:** For visibility.
+2.  **Large Empty Spaces:** Easy to color without going over the lines.
+3.  **Low Complexity:** No tiny details, no "mandala" patterns, no shading, no greyscale.
+4.  **Friendly/Calm Subjects:** If the subject is alive, it must look friendly.
+
+### OUTPUT FORMAT ###
+For every input, output ONLY the final prompt block following this exact template:
+
+\`Bold thick line art drawing of [SUBJECT MODIFIED FOR SIMPLICITY], centered, very simple shapes, large empty spaces for easy coloring, low detail, high contrast, black and white, vector style, white background --ar 17:22 --no shading, complex patterns, greyscale, text, realistic\`
+
+*(Note: --ar 17:22 sets the aspect ratio to 8.5:11 Portrait)*
+
+### FEW-SHOT EXAMPLES ###
+
+Input: a snowman wearing a scarf
+Output: Bold thick line art drawing of a cheerful snowman wearing a scarf, isolated, very simple shapes, large empty spaces for easy coloring, low detail, high contrast, black and white, vector style, white background --ar 17:22 --no shading, complex patterns, greyscale, text, realistic
+
+Input: a basket of flowers
+Output: Bold thick line art drawing of a simple woven basket holding three large tulips, centered, distinct outlines, very simple shapes, large empty spaces for easy coloring, low detail, high contrast, black and white, vector style, white background --ar 17:22 --no shading, complex patterns, greyscale, text, realistic
+
+Input: a sleeping cat
+Output: Bold thick line art drawing of a cute cat sleeping on a rug, minimal details, very simple shapes, large empty spaces for easy coloring, low detail, high contrast, black and white, vector style, white background --ar 17:22 --no shading, complex patterns, greyscale, text, realistic
+
+### YOUR TASK ###
+Convert the following Input into the optimized Output format.`,
+            enhancement_temperature: 0.3,
+            enhancement_thinking: false,
+            enhancement_search: false
         }
     },
     {
@@ -37,7 +71,7 @@ const initialModels = [
         config: {
             go_fast: false,
             input_images: [],
-            aspect_ratio: "custom",
+            aspect_ratio: ["custom"],
             width: 791,
             height: 1024
         }
@@ -98,10 +132,7 @@ async function seed() {
         if (!existingUserSettings) {
             await db.insert(userSettings).values({
                 userId: demoUser.id,
-                aspectRatio: '1:1',
-                enhancementTemperature: 0.3,
-                enhancementThinkingEnabled: false,
-                enhancementSearchEnabled: false
+                modelPreferences: {}
             });
             console.log('Inserted user settings for demo user');
         } else {

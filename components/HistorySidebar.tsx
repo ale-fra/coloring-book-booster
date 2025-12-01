@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { HistoryItem, getHistory, deleteHistoryItem, clearHistory } from '../lib/db';
+import { HistoryItem } from '../lib/db';
+import { getHistory, deleteHistoryItem, clearHistory } from '../app/actions';
 import { Clock, Trash2, ChevronRight, Image as ImageIcon } from 'lucide-react';
 
 interface HistorySidebarProps {
@@ -20,7 +21,7 @@ export function HistorySidebar({ isOpen, onClose, onLoad }: HistorySidebarProps)
     const loadHistory = async () => {
         const items = await getHistory();
         // Sort by timestamp descending (newest first)
-        setHistory(items.sort((a: HistoryItem, b: HistoryItem) => b.timestamp - a.timestamp));
+        setHistory(items.sort((a: HistoryItem, b: HistoryItem) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
     };
 
     const handleDelete = async (e: React.MouseEvent, id: string) => {

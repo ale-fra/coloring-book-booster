@@ -1,4 +1,4 @@
-import { RateLimiter } from "./lib/rate-limiter";
+import { RateLimiter } from "../lib/rate-limiter";
 
 async function testRateLimiter() {
     console.log("Starting Rate Limiter Test...");

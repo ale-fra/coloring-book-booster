@@ -5,6 +5,20 @@ import { appModels, appSettings, users, userSettings, userHistory, userPresets }
 import { eq, desc } from 'drizzle-orm';
 import { ModelConfig, Preset, HistoryItem, GenerationResult } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
+import Replicate from "replicate";
+import serverLogger from '@/lib/server-logger';
+
+export async function logAIInteraction(level: 'info' | 'error', message: string, meta?: any) {
+    try {
+        if (level === 'error') {
+            serverLogger.error(message, meta);
+        } else {
+            serverLogger.info(message, meta);
+        }
+    } catch (err) {
+        console.error('Failed to write server log:', err);
+    }
+}
 
 // Helper to get current user (Hardcoded Demo User for now)
 async function getCurrentUser() {
@@ -41,64 +55,35 @@ export async function getReplicateApiKey() {
     return undefined;
 }
 
-export async function getEnhancementPrompt() {
+
+
+export async function getModelPreferences(modelId?: string) {
     const s = await getSettings();
-    return s?.enhancementPrompt;
+    const prefs = (s?.modelPreferences as Record<string, any>) || {};
+    if (modelId) {
+        return prefs[modelId] || {};
+    }
+    return prefs;
 }
 
-export async function saveEnhancementPrompt(enhancementPrompt: string) {
+export async function saveModelPreferences(modelId: string, preferences: { aspectRatio: string, width?: number, height?: number }) {
     const user = await getCurrentUser();
     const existing = await getSettings();
 
-    if (existing) {
-        await db.update(userSettings).set({ enhancementPrompt }).where(eq(userSettings.id, existing.id));
-    } else {
-        await db.insert(userSettings).values({ userId: user.id, enhancementPrompt });
-    }
-}
+    // Validate dimensions
+    if (preferences.width && preferences.width > 1024) throw new Error("Width cannot exceed 1024");
+    if (preferences.height && preferences.height > 1024) throw new Error("Height cannot exceed 1024");
 
-export async function getEnhancementSettings() {
-    const s = await getSettings();
-    return {
-        temperature: s?.enhancementTemperature ?? 0.3,
-        thinkingEnabled: s?.enhancementThinkingEnabled ?? false,
-        searchEnabled: s?.enhancementSearchEnabled ?? false
+    const currentPrefs = (existing?.modelPreferences as Record<string, any>) || {};
+    const newPrefs = {
+        ...currentPrefs,
+        [modelId]: preferences
     };
-}
-
-export async function saveEnhancementSettings(config: { temperature: number; thinkingEnabled: boolean; searchEnabled: boolean }) {
-    const user = await getCurrentUser();
-    const existing = await getSettings();
 
     if (existing) {
-        await db.update(userSettings).set({
-            enhancementTemperature: config.temperature,
-            enhancementThinkingEnabled: config.thinkingEnabled,
-            enhancementSearchEnabled: config.searchEnabled
-        }).where(eq(userSettings.id, existing.id));
+        await db.update(userSettings).set({ modelPreferences: newPrefs }).where(eq(userSettings.id, existing.id));
     } else {
-        await db.insert(userSettings).values({
-            userId: user.id,
-            enhancementTemperature: config.temperature,
-            enhancementThinkingEnabled: config.thinkingEnabled,
-            enhancementSearchEnabled: config.searchEnabled
-        });
-    }
-}
-
-export async function getAspectRatio() {
-    const s = await getSettings();
-    return s?.aspectRatio || '1:1';
-}
-
-export async function saveAspectRatio(aspectRatio: string) {
-    const user = await getCurrentUser();
-    const existing = await getSettings();
-
-    if (existing) {
-        await db.update(userSettings).set({ aspectRatio }).where(eq(userSettings.id, existing.id));
-    } else {
-        await db.insert(userSettings).values({ userId: user.id, aspectRatio });
+        await db.insert(userSettings).values({ userId: user.id, modelPreferences: newPrefs });
     }
     revalidatePath('/');
 }

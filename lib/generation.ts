@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import mime from "mime";
 import { generateImageWithReplicateAction } from "../app/actions";
+import logger from './logger';
 import { RateLimiter } from "./rate-limiter";
 
 export interface GenerationResult {
@@ -20,16 +21,20 @@ export class GenerationService {
     private temperature?: number;
     private topP?: number;
     private aspectRatio?: string;
+    private width?: number;
+    private height?: number;
     private provider: 'gemini' | 'replicate';
     private config?: any;
 
-    constructor(apiKey: string, modelName: string, requestsPerMinute: number, temperature?: number, topP?: number, aspectRatio?: string, provider: 'gemini' | 'replicate' = 'gemini', replicateApiKey?: string, config?: any) {
+    constructor(apiKey: string, modelName: string, requestsPerMinute: number, temperature?: number, topP?: number, aspectRatio?: string, width?: number, height?: number, provider: 'gemini' | 'replicate' = 'gemini', replicateApiKey?: string, config?: any) {
         this.client = new GoogleGenAI({ apiKey });
         this.replicateApiKey = replicateApiKey;
         this.modelName = modelName;
         this.temperature = temperature;
         this.topP = topP;
         this.aspectRatio = aspectRatio;
+        this.width = width;
+        this.height = height;
         this.provider = provider;
         this.config = config;
         // Limit to requestsPerMinute per minute (60000 ms)
@@ -37,6 +42,8 @@ export class GenerationService {
     }
 
     async generateImage(prompt: string, systemPrompt?: string): Promise<GenerationResult> {
+        logger.info('Generating image request', { provider: this.provider, model: this.modelName, prompt, aspectRatio: this.aspectRatio });
+
         if (this.provider === 'replicate') {
             return this.generateWithReplicate(prompt);
         }
@@ -54,7 +61,14 @@ export class GenerationService {
                 };
 
                 if (this.aspectRatio) {
-                    config.aspectRatio = this.aspectRatio;
+                    if (this.aspectRatio === 'custom' && this.width && this.height) {
+                        // For Gemini, we might need to format it as "W:H" if supported, or just pass it if the SDK supports it.
+                        // Currently Gemini API mainly uses standard aspect ratios. 
+                        // We'll try to pass it as aspect_ratio string "W:H" which might work for some models.
+                        config.aspectRatio = `${this.width}:${this.height}`;
+                    } else {
+                        config.aspectRatio = this.aspectRatio;
+                    }
                 }
 
                 const contents = [
@@ -90,12 +104,15 @@ export class GenerationService {
                 }
 
                 if (imageUrl) {
+                    logger.info('Gemini generation success', { prompt, imageGenerated: true });
                     return { prompt, imageUrl };
                 } else {
+                    logger.error('Gemini generation error', { error: "No image data received from Gemini.", prompt });
                     return { prompt, error: "No image data received from Gemini." };
                 }
 
             } catch (error: any) {
+                logger.error('Gemini generation exception', { error: error.message, prompt, attempt: attempt + 1 });
                 console.error(`Generation Error (Attempt ${attempt + 1}/${maxRetries}):`, error);
 
                 const errorMessage = error.message || "";
@@ -126,27 +143,47 @@ export class GenerationService {
         // Actually, let's look at how I modified the constructor. I removed the initialization of this.replicate.
         // I should probably store the key.
 
-        // Let's assume I'll add a private replicateApiKey property in a separate edit or just use the one from config if available?
-        // No, the constructor takes `replicateApiKey`. I should store it.
-
         // For now, let's implement this method assuming I have access to the key. 
         // I will add the property back in a moment.
 
         if (!this.replicateApiKey) {
+            logger.error('Replicate generation failed: Missing API Key');
             return { prompt, error: "Replicate API key not configured." };
         }
 
         try {
             await this.rateLimiter.acquire();
 
-            const input = {
+            // Create input object, excluding aspect_ratio from config if it's an array (options)
+            // or if we have a specific aspectRatio set.
+            const { aspect_ratio, ...restConfig } = this.config || {};
+
+            const input: any = {
                 prompt: prompt,
-                ...this.config, // Merge custom config
+                ...restConfig,
             };
 
-            // If config doesn't have aspect_ratio, use the global one
-            if (!input.aspect_ratio && this.aspectRatio) {
-                input.aspect_ratio = this.aspectRatio === '1:1' ? '1:1' : (this.aspectRatio === '4:5' ? '4:5' : (this.aspectRatio === '5:4' ? '5:4' : 'custom'));
+            // Apply selected aspect ratio
+            if (this.aspectRatio) {
+                if (this.aspectRatio === 'custom' && this.width && this.height) {
+                    input.width = this.width;
+                    input.height = this.height;
+                    input.aspect_ratio = "custom"; // Flux might expect this explicitly or just omit it?
+                    // The error said "Expected: string". 
+                    // Some models like Flux might fail if aspect_ratio is present AND width/height are present if aspect_ratio is not "custom".
+                    // But usually if width/height are there, aspect_ratio might be ignored or should be "custom".
+                    // Let's set it to "custom" to be safe if the model supports it, or remove it if not.
+                    // Replicate Flux documentation says: aspect_ratio: "1:1", "16:9", etc. OR custom.
+                    // If custom, width and height are used.
+                } else {
+                    input.aspect_ratio = this.aspectRatio;
+                    // Remove width/height if not custom, to avoid conflicts
+                    delete input.width;
+                    delete input.height;
+                }
+            } else if (aspect_ratio && !Array.isArray(aspect_ratio)) {
+                // Fallback to config's aspect_ratio ONLY if it's a string (default value), not an array of options
+                input.aspect_ratio = aspect_ratio;
             }
 
             // Ensure output format is set if not in config
@@ -160,16 +197,20 @@ export class GenerationService {
             const result = await generateImageWithReplicateAction(this.replicateApiKey, this.modelName, input);
 
             if (result.error) {
+                logger.error('Replicate generation error', { error: result.error, prompt });
                 return { prompt, error: result.error };
             }
 
             if (result.imageUrl) {
+                logger.info('Replicate generation success', { prompt, imageGenerated: true });
                 return { prompt, imageUrl: result.imageUrl };
             } else {
+                logger.error('Replicate generation failed: No URL', { prompt });
                 return { prompt, error: "No image URL received from Replicate" };
             }
 
         } catch (error: any) {
+            logger.error('Replicate generation exception', { error: error.message, prompt });
             console.error("Replicate Generation Error:", error);
             return { prompt, error: error.message || "Unknown Replicate error" };
         }
@@ -183,6 +224,13 @@ export class GenerationService {
         thinkingEnabled: boolean = false,
         searchEnabled: boolean = false
     ): Promise<string> {
+        logger.info('Enhancing prompt request', {
+            userInput,
+            model: textModelName,
+            temperature,
+            thinkingEnabled,
+            searchEnabled
+        });
         try {
             const config: any = {
                 temperature: temperature,
@@ -217,10 +265,10 @@ export class GenerationService {
                     role: 'user',
                     parts: [
                         {
-                            text: userInput,
-                        },
-                    ],
-                },
+                            text: `${userInput} \n\nIMPORTANT: RETURN ONLY THE FINAL PROMPT TEXT.DO NOT INCLUDE "Here is the prompt", "Option 1", OR ANY OTHER CONVERSATIONAL TEXT.JUST THE PROMPT.`
+                        }
+                    ]
+                }
             ];
 
             const response = await this.client.models.generateContentStream({
@@ -236,10 +284,13 @@ export class GenerationService {
                 }
             }
 
-            return enhancedPrompt.trim();
+            const finalEnhancedPrompt = enhancedPrompt.trim();
+            logger.info('Prompt enhancement success', { original: userInput, enhanced: finalEnhancedPrompt });
+            return finalEnhancedPrompt;
         } catch (error: any) {
-            console.error('Prompt enhancement error:', error);
-            throw new Error(`Failed to enhance prompt: ${error.message || 'Unknown error'}`);
+            logger.error('Prompt enhancement error', { error: error.message, userInput });
+            console.error('Enhancement Error:', error);
+            return userInput; // Return original on error
         }
     }
 
