@@ -285,7 +285,7 @@ export async function getHistory() {
     }));
 }
 
-export async function updateHistoryItem(item: HistoryItem) {
+export async function updateHistoryItem(item: Omit<HistoryItem, 'userId'>) {
     const user = await getCurrentUser();
     await db.update(userHistory)
         .set({
@@ -305,5 +305,52 @@ export async function deleteHistoryItem(id: string) {
 export async function clearHistory() {
     const user = await getCurrentUser();
     await db.delete(userHistory).where(eq(userHistory.userId, user.id));
+}
+
+// Replicate Action
+export async function generateImageWithReplicateAction(
+    apiKey: string,
+    model: string,
+    input: any
+): Promise<{ imageUrl?: string; error?: string }> {
+    try {
+        const Replicate = (await import("replicate")).default;
+        const replicate = new Replicate({ auth: apiKey });
+
+        const output = await replicate.run(model as any, { input });
+
+        let imageUrl: string | undefined;
+
+        if (Array.isArray(output)) {
+            const firstItem = output[0];
+            if (typeof firstItem === 'string') {
+                imageUrl = firstItem;
+            } else if (firstItem && typeof firstItem === 'object' && 'url' in firstItem) {
+                imageUrl = (firstItem as any).url().toString();
+            }
+        } else if (typeof output === 'string') {
+            imageUrl = output;
+        } else if (output && typeof output === 'object' && 'url' in output) {
+            imageUrl = (output as any).url().toString();
+        } else {
+            console.log("Unknown Replicate output format:", output);
+            return { error: "Unknown output format from Replicate" };
+        }
+
+        if (imageUrl) {
+            const imageResponse = await fetch(imageUrl);
+            const arrayBuffer = await imageResponse.arrayBuffer();
+            const base64 = Buffer.from(arrayBuffer).toString('base64');
+            const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
+            const dataUri = `data:${mimeType};base64,${base64}`;
+
+            return { imageUrl: dataUri };
+        } else {
+            return { error: "No image URL received from Replicate" };
+        }
+    } catch (error: any) {
+        console.error("Replicate Action Error:", error);
+        return { error: error.message || "Unknown Replicate error" };
+    }
 }
 

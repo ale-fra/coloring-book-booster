@@ -1,7 +1,7 @@
 
 
-export { type GenerationResult } from './gemini';
-import { GenerationResult } from './gemini';
+export { type GenerationResult } from './generation';
+import { GenerationResult } from './generation';
 
 export interface Preset {
     id: string;
