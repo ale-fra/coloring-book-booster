@@ -9,6 +9,7 @@ export const users = outlinefactory.table('users', {
     id: uuid('id').primaryKey().defaultRandom(),
     email: text('email').notNull().unique(),
     passwordHash: text('password_hash'),
+    isAdmin: boolean('is_admin').default(false),
     credits: integer('credits').default(0),
     lastLoginAt: timestamp('last_login_at'),
     createdAt: timestamp('created_at').defaultNow(),
