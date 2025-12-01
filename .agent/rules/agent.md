@@ -1,10 +1,10 @@
----
+﻿---
 trigger: always_on
 ---
 
 # Contributor Guidelines (Global)
 
-This repository now has a root-level `AGENTS.md`. It applies to all files unless a nested `AGENTS.md` exists within a subdirectory, in which case the nested file’s rules take precedence for that subtree. For example, `components/AGENTS.md` would override relevant guidance for files in `components/`, while this root file would still govern `lib/` and other areas without their own file.
+This repository now has a root-level `AGENTS.md`. It applies to all files unless a nested `AGENTS.md` exists within a subdirectory, in which case the nested fileâ€™s rules take precedence for that subtree. For example, `components/AGENTS.md` would override relevant guidance for files in `components/`, while this root file would still govern `lib/` and other areas without their own file.
 
 ## Coding Standards
 - Use TypeScript first: keep types explicit, narrow, and reuse shared types from `lib` where possible.
@@ -32,6 +32,7 @@ This repository now has a root-level `AGENTS.md`. It applies to all files unless
 
 ## Branch and PR Hygiene
 - Develop on feature branches; keep commits scoped and descriptive.
+- Always suggest commit comments for every change.
 - Prefer small, reviewable PRs with clear titles and structured summaries (what/why/how, tests, risks).
 - Ensure CI/lint/test status is green before requesting review. If you must merge with known issues, clearly call them out and create follow-up tasks.
 
@@ -61,11 +62,11 @@ This repository now has a root-level `AGENTS.md`. It applies to all files unless
 - Use `npm run lint` and `npm test` locally to mirror CI expectations.
 
 ## Repository Layout (high level)
-- `app/` – Next.js app router pages and route handlers.
-- `components/` – Shared React UI components.
-- `lib/` – Utilities, services, and shared logic (e.g., data access, helpers).
-- `public/` – Static assets.
-- `tests/` (if present) and `*.test.ts` files – Automated tests.
+- `app/` â€“ Next.js app router pages and route handlers.
+- `components/` â€“ Shared React UI components.
+- `lib/` â€“ Utilities, services, and shared logic (e.g., data access, helpers).
+- `public/` â€“ Static assets.
+- `tests/` (if present) and `*.test.ts` files â€“ Automated tests.
 - Root configs: `next.config.ts`, `tsconfig.json`, `eslint.config.mjs`, `jest.config.js`, `tailwind`/PostCSS config, `drizzle.config.ts`.
 
 ## Artifact Expectations
@@ -75,3 +76,4 @@ This repository now has a root-level `AGENTS.md`. It applies to all files unless
 
 ## Nested `AGENTS.md` Precedence
 - This file is global. Any `AGENTS.md` placed inside a subdirectory (e.g., `app/AGENTS.md` or `components/forms/AGENTS.md`) overrides relevant guidance for files in that folder and its children. If instructions conflict, the nearest (most deeply nested) `AGENTS.md` wins. When editing multiple files across directories, follow the instructions applicable to each path.
+
