@@ -22,7 +22,7 @@ export const userSettings = outlinefactory.table('user_settings', {
     enhancementTemperature: real('enhancement_temperature').default(0.3),
     enhancementThinkingEnabled: boolean('enhancement_thinking_enabled').default(false),
     enhancementSearchEnabled: boolean('enhancement_search_enabled').default(false),
-    aspectRatio: text('aspect_ratio').default('1:1'),
+    modelPreferences: jsonb('model_preferences').default({}),
 });
 
 export const userHistory = outlinefactory.table('user_history', {

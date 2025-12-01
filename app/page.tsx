@@ -12,12 +12,14 @@ import {
   getReplicateApiKey,
   getModels,
   initializeDefaultModels,
-  getAspectRatio,
+
   getCredits,
   saveCredits,
   addHistoryItem,
   updateHistoryItem,
-  getHistory
+  getHistory,
+  getModelPreferences,
+  saveModelPreferences
 } from '../app/actions';
 import { Sparkles, Palette, Coins } from 'lucide-react';
 
@@ -39,7 +41,9 @@ function HomeContent() {
   const [selectedModelId, setSelectedModelId] = useState<string>('');
   const [selectedTextModelId, setSelectedTextModelId] = useState<string>('');
   const [isPresetEnabled, setIsPresetEnabled] = useState(false);
-  const [aspectRatio, setAspectRatio] = useState<string | undefined>(undefined);
+  const [aspectRatio, setAspectRatio] = useState<string>('1:1');
+  const [customWidth, setCustomWidth] = useState<number>(1024);
+  const [customHeight, setCustomHeight] = useState<number>(1024);
   const [credits, setCredits] = useState<number>(0);
 
   // Ref to keep track of latest results for async updates
@@ -65,7 +69,7 @@ function HomeContent() {
       const key = await getApiKey();
       const repKey = await getReplicateApiKey();
       const loadedModels = await getModels();
-      const ar = await getAspectRatio();
+
       const currentCredits = await getCredits();
 
       // Filter for image models only
@@ -74,7 +78,6 @@ function HomeContent() {
       setApiKey(key ?? undefined);
       setReplicateApiKey(repKey ?? undefined);
       setModels(imageModels);
-      setAspectRatio(ar);
       setCredits(currentCredits);
 
 
@@ -93,6 +96,55 @@ function HomeContent() {
     } catch (error) {
       console.error("Failed to load settings:", error);
     }
+
+  };
+
+  useEffect(() => {
+    if (selectedModelId) {
+      loadModelPreferences(selectedModelId);
+    }
+  }, [selectedModelId]);
+
+  const loadModelPreferences = async (modelId: string) => {
+    try {
+      const prefs = await getModelPreferences(modelId);
+      const model = models.find(m => m.id === modelId);
+      let supportedRatios = model?.config?.aspect_ratio;
+      if (!Array.isArray(supportedRatios)) {
+        supportedRatios = ["1:1", "4:5", "5:4", "custom"];
+      }
+
+      if (prefs.aspectRatio) {
+        setAspectRatio(prefs.aspectRatio);
+      } else {
+        // Default to first supported ratio or 1:1
+        setAspectRatio(supportedRatios[0] || '1:1');
+      }
+
+      if (prefs.width) setCustomWidth(prefs.width);
+      if (prefs.height) setCustomHeight(prefs.height);
+    } catch (e) {
+      console.error("Failed to load model prefs", e);
+    }
+  };
+
+  const handleAspectRatioChange = (val: string) => {
+    setAspectRatio(val);
+    saveModelPreferences(selectedModelId, { aspectRatio: val, width: customWidth, height: customHeight });
+  };
+
+  const handleDimensionChange = (type: 'width' | 'height', val: number) => {
+    let newVal = val;
+    if (newVal > 1024) newVal = 1024;
+
+    if (type === 'width') setCustomWidth(newVal);
+    else setCustomHeight(newVal);
+
+    // Debounce save? For simplicity, we'll save immediately but maybe we should debounce.
+    // Given it's local dev mostly, immediate is fine, or we can use a timeout.
+    const w = type === 'width' ? newVal : customWidth;
+    const h = type === 'height' ? newVal : customHeight;
+    saveModelPreferences(selectedModelId, { aspectRatio, width: w, height: h });
   };
 
   const loadHistoryItem = async (id: string) => {
@@ -186,7 +238,7 @@ function HomeContent() {
 
     const tpm = selectedModel.tpm || 20;
     const batchSize = Math.min(Math.floor(tpm / 2), 100);
-    const service = new GenerationService(apiKey || '', selectedModel.name, tpm, selectedModel.temperature, selectedModel.topP, aspectRatio, selectedModel.provider, replicateApiKey, selectedModel.config);
+    const service = new GenerationService(apiKey || '', selectedModel.name, tpm, selectedModel.temperature, selectedModel.topP, aspectRatio, customWidth, customHeight, selectedModel.provider, replicateApiKey, selectedModel.config);
 
 
     let allResults: GenerationResult[] = new Array(prompts.length).fill(null).map((_, i) => ({ prompt: prompts[i], isLoading: true }));
@@ -299,14 +351,12 @@ function HomeContent() {
     }
 
     // Load enhancement prompt and settings from settings
-    const { getEnhancementPrompt, getEnhancementSettings } = await import('../app/actions');
-    let systemPrompt = await getEnhancementPrompt();
-    const enhSettings = await getEnhancementSettings();
-
-    // Use default prompt if not configured
-    if (!systemPrompt) {
-      systemPrompt = getDefaultEnhancementPrompt();
-    }
+    // Load enhancement settings from model config
+    const config = textModel.config || {};
+    const systemPrompt = config.enhancement_prompt || getDefaultEnhancementPrompt();
+    const temperature = config.enhancement_temperature ?? 0.3;
+    const thinkingEnabled = config.enhancement_thinking ?? false;
+    const searchEnabled = config.enhancement_search ?? false;
 
     setIsGenerating(true);
 
@@ -321,9 +371,9 @@ function HomeContent() {
             prompts[i],
             textModel.name,
             systemPrompt,
-            enhSettings.temperature,
-            enhSettings.thinkingEnabled,
-            enhSettings.searchEnabled
+            temperature,
+            thinkingEnabled,
+            searchEnabled
           );
           enhancedPrompts.push(enhanced);
         } catch (error) {
@@ -398,7 +448,7 @@ Convert the following Input into the optimized Output format.`;
       return newResults;
     });
 
-    const service = new GenerationService(apiKey || '', selectedModel.name, selectedModel.tpm, selectedModel.temperature, selectedModel.topP, aspectRatio, selectedModel.provider, replicateApiKey, selectedModel.config);
+    const service = new GenerationService(apiKey || '', selectedModel.name, selectedModel.tpm, selectedModel.temperature, selectedModel.topP, aspectRatio, customWidth, customHeight, selectedModel.provider, replicateApiKey, selectedModel.config);
 
     try {
       const result = await service.generateImage(newPrompt, isPresetEnabled && selectedPreset ? selectedPreset.prompt : undefined);
@@ -499,6 +549,49 @@ Convert the following Input into the optimized Output format.`;
                 </option>
               ))}
             </select>
+
+            {/* Aspect Ratio Selector */}
+            <div className="flex items-center gap-2 border-l border-border pl-4 ml-2">
+              <select
+                value={aspectRatio}
+                onChange={(e) => handleAspectRatioChange(e.target.value)}
+                className="bg-secondary border-none rounded-md px-3 py-1.5 text-sm focus:ring-1 focus:ring-primary outline-none"
+                title="Aspect Ratio"
+              >
+                {(() => {
+                  const model = models.find(m => m.id === selectedModelId);
+                  let ratios = model?.config?.aspect_ratio;
+                  if (!Array.isArray(ratios)) {
+                    ratios = ["1:1", "4:5", "5:4", "16:9", "custom"];
+                  }
+                  return ratios.map((ar: string) => (
+                    <option key={ar} value={ar}>{ar}</option>
+                  ));
+                })()}
+              </select>
+
+              {aspectRatio === 'custom' && (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    value={customWidth}
+                    onChange={(e) => handleDimensionChange('width', parseInt(e.target.value) || 0)}
+                    className="w-16 bg-secondary border-none rounded-md px-2 py-1.5 text-sm focus:ring-1 focus:ring-primary outline-none"
+                    placeholder="W"
+                    max={1024}
+                  />
+                  <span className="text-muted-foreground">x</span>
+                  <input
+                    type="number"
+                    value={customHeight}
+                    onChange={(e) => handleDimensionChange('height', parseInt(e.target.value) || 0)}
+                    className="w-16 bg-secondary border-none rounded-md px-2 py-1.5 text-sm focus:ring-1 focus:ring-primary outline-none"
+                    placeholder="H"
+                    max={1024}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </header>
       )}
