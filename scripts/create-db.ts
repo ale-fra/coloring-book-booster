@@ -2,7 +2,7 @@
 import { Client } from 'pg';
 import * as dotenv from 'dotenv';
 
-dotenv.config({ path: '.env.local' });
+dotenv.config({ path: '.env' });
 
 async function createDb() {
     const dbUrl = process.env.DATABASE_URL;

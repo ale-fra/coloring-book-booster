@@ -1,9 +1,11 @@
 
-import { pgTable, text, integer, boolean, real, timestamp, jsonb, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, boolean, real, timestamp, jsonb, uuid, pgSchema } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
+export const outlinefactory = pgSchema('outlinefactory');
+
 // User Tables
-export const users = pgTable('users', {
+export const users = outlinefactory.table('users', {
     id: uuid('id').primaryKey().defaultRandom(),
     email: text('email').notNull().unique(),
     passwordHash: text('password_hash'),
@@ -13,7 +15,7 @@ export const users = pgTable('users', {
     updatedAt: timestamp('updated_at').defaultNow(),
 });
 
-export const userSettings = pgTable('user_settings', {
+export const userSettings = outlinefactory.table('user_settings', {
     id: uuid('id').primaryKey().defaultRandom(),
     userId: uuid('user_id').notNull().references(() => users.id),
     enhancementPrompt: text('enhancement_prompt'),
@@ -23,7 +25,7 @@ export const userSettings = pgTable('user_settings', {
     aspectRatio: text('aspect_ratio').default('1:1'),
 });
 
-export const userHistory = pgTable('user_history', {
+export const userHistory = outlinefactory.table('user_history', {
     id: uuid('id').primaryKey().defaultRandom(),
     userId: uuid('user_id').notNull().references(() => users.id),
     timestamp: timestamp('timestamp').notNull(),
@@ -32,7 +34,7 @@ export const userHistory = pgTable('user_history', {
     results: jsonb('results').notNull(), // Stores GenerationResult[]
 });
 
-export const userPresets = pgTable('user_presets', {
+export const userPresets = outlinefactory.table('user_presets', {
     id: uuid('id').primaryKey().defaultRandom(),
     userId: uuid('user_id').notNull().references(() => users.id),
     title: text('title').notNull(),
@@ -41,14 +43,14 @@ export const userPresets = pgTable('user_presets', {
 });
 
 // App/Global Tables
-export const appSettings = pgTable('app_settings', {
+export const appSettings = outlinefactory.table('app_settings', {
     id: uuid('id').primaryKey().defaultRandom(),
     maintenanceMode: boolean('maintenance_mode').default(false),
     defaultCredits: integer('default_credits').default(250),
     announcement: text('announcement'),
 });
 
-export const appModels = pgTable('app_models', {
+export const appModels = outlinefactory.table('app_models', {
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull(),
     dailyLimit: integer('daily_limit').notNull(),
