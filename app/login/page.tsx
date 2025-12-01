@@ -1,15 +1,23 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect } from 'react';
 import { authenticate } from '@/app/actions';
 import Link from 'next/link';
 import { AuthShell } from '@/components/AuthShell';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
     const [errorMessage, formAction, isPending] = useActionState(
         authenticate,
         undefined,
     );
+    const router = useRouter();
+
+    useEffect(() => {
+        if (errorMessage === 'success') {
+            router.push('/');
+        }
+    }, [errorMessage, router]);
 
     return (
         <AuthShell
@@ -64,7 +72,7 @@ export default function LoginPage() {
                         {isPending ? 'Signing in...' : 'Sign in'}
                     </button>
 
-                    {errorMessage && (
+                    {errorMessage && errorMessage !== 'success' && (
                         <p className="text-sm text-destructive" aria-live="polite" aria-atomic="true">
                             {errorMessage}
                         </p>

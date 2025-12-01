@@ -7,6 +7,7 @@ import { ModelConfig, Preset, HistoryItem, GenerationResult } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import Replicate from "replicate";
 import serverLogger from '@/lib/server-logger';
+import { z } from 'zod';
 
 export async function logAIInteraction(level: 'info' | 'error', message: string, meta?: any) {
     try {
@@ -27,13 +28,21 @@ import bcrypt from 'bcryptjs';
 // Helper to get current user
 async function getCurrentUser() {
     const session = await auth();
-    if (!session?.user?.email) {
+    const sessionUser = session?.user as { id?: string; email?: string } | undefined;
+
+    if (!sessionUser) {
         throw new Error('Not authenticated');
     }
 
-    const user = await db.query.users.findFirst({
-        where: eq(users.email, session.user.email)
-    });
+    const user = sessionUser.id
+        ? await db.query.users.findFirst({
+            where: eq(users.id, sessionUser.id)
+        })
+        : sessionUser.email
+            ? await db.query.users.findFirst({
+                where: eq(users.email, sessionUser.email)
+            })
+            : null;
 
     if (!user) throw new Error('User not found');
     return user;
@@ -52,7 +61,8 @@ export async function authenticate(
     formData: FormData,
 ) {
     try {
-        await signIn('credentials', formData);
+        await signIn('credentials', Object.assign({}, Object.fromEntries(formData), { redirectTo: '/' }));
+        return 'success';
     } catch (error) {
         if (error instanceof AuthError) {
             switch (error.type) {
@@ -104,6 +114,104 @@ export async function registerUser(prevState: string | undefined, formData: Form
 
 export async function logout() {
     await signOut({ redirectTo: '/login' });
+}
+
+export type AccountActionState = {
+    status: 'idle' | 'success' | 'error';
+    message: string;
+};
+
+export async function updateEmailAddress(prevState: AccountActionState, formData: FormData): Promise<AccountActionState> {
+    try {
+        const user = await getCurrentUser();
+        const newEmail = (formData.get('email') as string | null)?.trim();
+        const password = formData.get('password') as string | null;
+
+        if (!newEmail || !password) {
+            return { status: 'error', message: 'Email and password are required.' };
+        }
+
+        const parsedEmail = z.string().email().safeParse(newEmail);
+        if (!parsedEmail.success) {
+            return { status: 'error', message: 'Enter a valid email address.' };
+        }
+
+        if (!user.passwordHash) {
+            return { status: 'error', message: 'This account cannot change email without a password set.' };
+        }
+
+        const passwordValid = await bcrypt.compare(password, user.passwordHash);
+        if (!passwordValid) {
+            return { status: 'error', message: 'Incorrect password. Please try again.' };
+        }
+
+        if (parsedEmail.data === user.email) {
+            return { status: 'error', message: 'Use a different email than your current one.' };
+        }
+
+        const emailInUse = await db.query.users.findFirst({
+            where: eq(users.email, parsedEmail.data)
+        });
+
+        if (emailInUse) {
+            return { status: 'error', message: 'That email is already in use.' };
+        }
+
+        await db.update(users)
+            .set({ email: parsedEmail.data, updatedAt: new Date() })
+            .where(eq(users.id, user.id));
+
+        revalidatePath('/user');
+        return { status: 'success', message: 'Email updated. You may need to sign in again for changes to show everywhere.' };
+    } catch (error) {
+        console.error('Failed to update email:', error);
+        return { status: 'error', message: 'Could not update email right now. Please try again.' };
+    }
+}
+
+export async function changePassword(prevState: AccountActionState, formData: FormData): Promise<AccountActionState> {
+    try {
+        const user = await getCurrentUser();
+        const currentPassword = formData.get('currentPassword') as string | null;
+        const newPassword = formData.get('newPassword') as string | null;
+        const confirmPassword = formData.get('confirmPassword') as string | null;
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            return { status: 'error', message: 'Fill out all password fields.' };
+        }
+
+        if (!user.passwordHash) {
+            return { status: 'error', message: 'This account does not have a password set.' };
+        }
+
+        const matches = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!matches) {
+            return { status: 'error', message: 'Current password is incorrect.' };
+        }
+
+        if (newPassword !== confirmPassword) {
+            return { status: 'error', message: 'New passwords do not match.' };
+        }
+
+        if (newPassword.length < 6) {
+            return { status: 'error', message: 'Choose a password with at least 6 characters.' };
+        }
+
+        if (newPassword === currentPassword) {
+            return { status: 'error', message: 'New password must be different from the current one.' };
+        }
+
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+        await db.update(users)
+            .set({ passwordHash, updatedAt: new Date() })
+            .where(eq(users.id, user.id));
+
+        revalidatePath('/user');
+        return { status: 'success', message: 'Password updated successfully.' };
+    } catch (error) {
+        console.error('Failed to change password:', error);
+        return { status: 'error', message: 'Could not change password right now. Please try again.' };
+    }
 }
 
 // Settings Actions
@@ -440,4 +548,3 @@ export async function generateImageWithReplicateAction(
         return { error: error.message || "Unknown Replicate error" };
     }
 }
-

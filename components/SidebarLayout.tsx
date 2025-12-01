@@ -12,10 +12,9 @@ export function SidebarLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const { status } = useSession();
     const isAuthPage = pathname?.startsWith('/login') || pathname?.startsWith('/register');
-    const isProfilePage = pathname?.startsWith('/user');
-    const shouldHideSidebar = isAuthPage || status !== 'authenticated';
+    const shouldHideSidebar = isAuthPage || status === 'unauthenticated';
 
-    if (shouldHideSidebar || isProfilePage) {
+    if (shouldHideSidebar) {
         return <div className="min-h-screen bg-background text-foreground">{children}</div>;
     }
 

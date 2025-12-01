@@ -1,4 +1,6 @@
-export { auth as default } from './auth';
+import { auth } from "./auth";
+
+export default auth;
 
 export const config = {
     // Protect all application routes and API handlers except for NextAuth endpoints and static assets.
