@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, History, Settings, Palette, ChevronLeft, ChevronRight, Coins } from 'lucide-react';
+import { Home, History, Settings, Palette, ChevronLeft, ChevronRight, Coins, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useEffect, useState } from 'react';
 import { getCredits } from '../app/actions';
@@ -34,6 +34,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
 
     const links = [
         { href: '/', label: 'Generate', icon: Home },
+        { href: '/spaces', label: 'Spaces', icon: Sparkles },
         { href: '/history', label: 'History', icon: History },
         { href: '/settings', label: 'Settings', icon: Settings },
     ];
