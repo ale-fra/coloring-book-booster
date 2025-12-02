@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Download, Image as ImageIcon, AlertTriangle, Edit2, RefreshCw, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { saveAs } from 'file-saver';
-import { type GenerationResult } from '../lib/gemini';
+import { type GenerationResult } from '../lib/generation';
 
 interface ResultGalleryProps {
     results: GenerationResult[];

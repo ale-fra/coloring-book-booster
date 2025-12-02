@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Trash2, Edit2, Check, X, Sparkles, RefreshCw, Wand2, Grid3x3, LayoutGrid, List, Download } from 'lucide-react';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { GenerationResult } from '../lib/gemini';
+import { GenerationResult } from '../lib/generation';
 import { ResultGallery } from './ResultGallery';
 
 interface PromptListProps {

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getHistory, deleteHistoryItem, clearHistory, type HistoryItem } from '../../lib/db';
+import { getHistory, deleteHistoryItem, clearHistory } from '../actions';
+import { type HistoryItem } from '../../lib/db';
 import { formatDistanceToNow } from 'date-fns';
 import { ArrowRight, Calendar, Layers, Sparkles, Trash2 } from 'lucide-react';
 
@@ -18,7 +19,7 @@ export default function HistoryPage() {
     const loadHistory = async () => {
         try {
             const items = await getHistory();
-            setHistory(items.sort((a: HistoryItem, b: HistoryItem) => b.timestamp - a.timestamp));
+            setHistory(items.sort((a: HistoryItem, b: HistoryItem) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
         } catch (error) {
             console.error("Failed to load history:", error);
         } finally {

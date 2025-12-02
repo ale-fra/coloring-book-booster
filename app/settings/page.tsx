@@ -4,23 +4,12 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Trash2, Save, Edit2, X, Sun, Moon, Monitor, Check, ShieldAlert } from 'lucide-react';
 import {
-    getApiKey,
-    saveApiKey,
-    getReplicateApiKey,
-    saveReplicateApiKey,
     getModels,
     addModel,
     updateModel,
     deleteModel,
     setDefaultModel,
-    getEnhancementPrompt,
-    saveEnhancementPrompt,
-    getEnhancementSettings,
-    saveEnhancementSettings,
-    getAspectRatio,
-    saveAspectRatio,
-    getCredits,
-    saveCredits,
+
     initializeDefaultModels
 } from '../../app/actions';
 import { type ModelConfig } from '../../lib/db';
@@ -72,26 +61,24 @@ const SettingsItem = ({ label, description, children, layout = 'row', className 
 export default function SettingsPage() {
     const router = useRouter();
     const { theme, setTheme } = useTheme();
-    const [apiKey, setApiKey] = useState('');
-    const [replicateApiKey, setReplicateApiKey] = useState('');
-    const [enhancementPrompt, setEnhancementPrompt] = useState('');
-    const [enhancementTemperature, setEnhancementTemperature] = useState(0.3);
-    const [enhancementThinking, setEnhancementThinking] = useState(false);
-    const [enhancementSearch, setEnhancementSearch] = useState(false);
-    const [aspectRatio, setAspectRatio] = useState('1:1');
-    const [credits, setCredits] = useState(250);
+
+
     const [models, setModels] = useState<ModelConfig[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSavingKey, setIsSavingKey] = useState(false);
     const [isSavingReplicateKey, setIsSavingReplicateKey] = useState(false);
-    const [isSavingPrompt, setIsSavingPrompt] = useState(false);
-    const [isSavingAspectRatio, setIsSavingAspectRatio] = useState(false);
-    const [isSavingCredits, setIsSavingCredits] = useState(false);
+
 
     // Model Form State
     const [isEditingModel, setIsEditingModel] = useState(false);
     const [currentModel, setCurrentModel] = useState<Partial<ModelConfig>>({});
     const [configJson, setConfigJson] = useState('');
+
+    // Enhancement Form State (for modal)
+    const [enhancementPrompt, setEnhancementPrompt] = useState('');
+    const [enhancementTemperature, setEnhancementTemperature] = useState(0.3);
+    const [enhancementThinking, setEnhancementThinking] = useState(false);
+    const [enhancementSearch, setEnhancementSearch] = useState(false);
 
     useEffect(() => {
         loadSettings();
@@ -100,57 +87,15 @@ export default function SettingsPage() {
     const loadSettings = async () => {
         try {
             await initializeDefaultModels();
-            const key = await getApiKey();
-            const repKey = await getReplicateApiKey();
             const loadedModels = await getModels();
-            const prompt = await getEnhancementPrompt();
-            const enhSettings = await getEnhancementSettings();
-            const ar = await getAspectRatio();
-            const currentCredits = await getCredits();
 
 
-            if (key) setApiKey(key);
-            if (repKey) setReplicateApiKey(repKey);
             setModels(loadedModels);
-            if (prompt) {
-                setEnhancementPrompt(prompt);
-            } else {
-                setEnhancementPrompt(getDefaultEnhancementPrompt());
-            }
-            setEnhancementTemperature(enhSettings.temperature);
-            setEnhancementThinking(enhSettings.thinkingEnabled);
-            setEnhancementSearch(enhSettings.searchEnabled);
-            setAspectRatio(ar);
-            setCredits(currentCredits);
+
         } catch (error) {
             console.error("Failed to load settings:", error);
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    const handleSaveApiKey = async () => {
-        setIsSavingKey(true);
-        try {
-            await saveApiKey(apiKey);
-            // Optional: Show a toast or success message
-        } catch (error) {
-            console.error("Failed to save API key:", error);
-            alert('Failed to save API key.');
-        } finally {
-            setIsSavingKey(false);
-        }
-    };
-
-    const handleSaveReplicateApiKey = async () => {
-        setIsSavingReplicateKey(true);
-        try {
-            await saveReplicateApiKey(replicateApiKey);
-        } catch (error) {
-            console.error("Failed to save Replicate API key:", error);
-            alert('Failed to save Replicate API key.');
-        } finally {
-            setIsSavingReplicateKey(false);
         }
     };
 
@@ -188,54 +133,27 @@ Output: Bold thick line art drawing of a cute cat sleeping on a rug, minimal det
 Convert the following Input into the optimized Output format.`;
     };
 
-    const handleSaveEnhancementPrompt = async () => {
-        setIsSavingPrompt(true);
-        try {
-            await saveEnhancementPrompt(enhancementPrompt);
-            await saveEnhancementSettings({
-                temperature: enhancementTemperature,
-                thinkingEnabled: enhancementThinking,
-                searchEnabled: enhancementSearch
-            });
-            // Optional: Show toast
-        } catch (error) {
-            console.error("Failed to save enhancement configuration:", error);
-            alert('Failed to save enhancement configuration.');
-        } finally {
-            setIsSavingPrompt(false);
-        }
-    };
 
-    const handleSaveAspectRatio = async () => {
-        setIsSavingAspectRatio(true);
-        try {
-            await saveAspectRatio(aspectRatio);
-            // Optional: Show toast
-        } catch (error) {
-            console.error("Failed to save aspect ratio:", error);
-            alert('Failed to save aspect ratio.');
-        } finally {
-            setIsSavingAspectRatio(false);
-        }
-    };
-
-    const handleSaveCredits = async () => {
-        setIsSavingCredits(true);
-        try {
-            await saveCredits(credits);
-            window.dispatchEvent(new Event('credits-updated'));
-            // Optional: Show toast
-        } catch (error) {
-            console.error("Failed to save credits:", error);
-            alert('Failed to save credits.');
-        } finally {
-            setIsSavingCredits(false);
-        }
-    };
 
     const handleEditModel = (model: ModelConfig) => {
         setCurrentModel(model);
-        setConfigJson(JSON.stringify(model.config || {}, null, 2));
+
+        // Extract enhancement settings from config
+        const config = model.config || {};
+        const {
+            enhancement_prompt,
+            enhancement_temperature,
+            enhancement_thinking,
+            enhancement_search,
+            ...restConfig
+        } = config;
+
+        setEnhancementPrompt(enhancement_prompt || getDefaultEnhancementPrompt());
+        setEnhancementTemperature(enhancement_temperature ?? 0.3);
+        setEnhancementThinking(enhancement_thinking ?? false);
+        setEnhancementSearch(enhancement_search ?? false);
+
+        setConfigJson(JSON.stringify(restConfig, null, 2));
         setIsEditingModel(true);
     };
 
@@ -250,6 +168,13 @@ Convert the following Input into the optimized Output format.`;
             provider: 'gemini',
             config: {}
         });
+
+        // Defaults for new model
+        setEnhancementPrompt(getDefaultEnhancementPrompt());
+        setEnhancementTemperature(0.3);
+        setEnhancementThinking(false);
+        setEnhancementSearch(false);
+
         setConfigJson('{}');
         setIsEditingModel(true);
     };
@@ -261,13 +186,22 @@ Convert the following Input into the optimized Output format.`;
         }
 
         try {
-            let config = {};
+            let baseConfig = {};
             try {
-                config = JSON.parse(configJson);
+                baseConfig = JSON.parse(configJson);
             } catch (e) {
                 alert("Invalid JSON configuration.");
                 return;
             }
+
+            // Merge enhancement settings into config
+            const config = {
+                ...baseConfig,
+                enhancement_prompt: enhancementPrompt,
+                enhancement_temperature: enhancementTemperature,
+                enhancement_thinking: enhancementThinking,
+                enhancement_search: enhancementSearch
+            };
 
             const modelToSave = { ...currentModel, config };
 
@@ -284,7 +218,8 @@ Convert the following Input into the optimized Output format.`;
             loadSettings(); // Reload list
         } catch (error) {
             console.error("Failed to save model:", error);
-            alert("Failed to save model.");
+            const message = error instanceof Error ? error.message : "Failed to save model.";
+            alert(message);
         }
     };
 
@@ -306,6 +241,8 @@ Convert the following Input into the optimized Output format.`;
             loadSettings();
         } catch (error) {
             console.error("Failed to set default model:", error);
+            const message = error instanceof Error ? error.message : "Failed to set default model.";
+            alert(message);
         }
     };
 
@@ -371,178 +308,7 @@ Convert the following Input into the optimized Output format.`;
                     </SettingsItem>
                 </SettingsSection>
 
-                {/* API Key */}
-                <SettingsSection title="API Keys" description="Manage your API keys for different providers.">
-                    <SettingsItem label="Gemini API Key" description="Required for accessing Gemini models." layout="col">
-                        <div className="flex gap-4">
-                            <input
-                                type="password"
-                                value={apiKey}
-                                onChange={(e) => setApiKey(e.target.value)}
-                                placeholder="Enter your Gemini API Key"
-                                className="flex-1 bg-background border border-border rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                            <button
-                                onClick={handleSaveApiKey}
-                                disabled={isSavingKey}
-                                className="bg-primary text-primary-foreground px-6 py-2 rounded-md hover:opacity-90 transition-opacity flex items-center gap-2 font-medium"
-                            >
-                                {isSavingKey ? <span className="animate-spin">⏳</span> : <Save size={18} />}
-                                {isSavingKey ? 'Saving...' : 'Save'}
-                            </button>
-                        </div>
-                    </SettingsItem>
 
-                    <div className="h-px bg-border my-6" />
-
-                    <SettingsItem label="Replicate API Key" description="Required for accessing Replicate models (e.g., Flux)." layout="col">
-                        <div className="flex gap-4">
-                            <input
-                                type="password"
-                                value={replicateApiKey}
-                                onChange={(e) => setReplicateApiKey(e.target.value)}
-                                placeholder="Enter your Replicate API Key"
-                                className="flex-1 bg-background border border-border rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                            <button
-                                onClick={handleSaveReplicateApiKey}
-                                disabled={isSavingReplicateKey}
-                                className="bg-primary text-primary-foreground px-6 py-2 rounded-md hover:opacity-90 transition-opacity flex items-center gap-2 font-medium"
-                            >
-                                {isSavingReplicateKey ? <span className="animate-spin">⏳</span> : <Save size={18} />}
-                                {isSavingReplicateKey ? 'Saving...' : 'Save'}
-                            </button>
-                        </div>
-                    </SettingsItem>
-                </SettingsSection>
-
-                {/* Credits */}
-                <SettingsSection title="Credits" description="Manage your available credits for image generation.">
-                    <SettingsItem label="Available Credits" description="Each image generation consumes 1 credit." layout="col">
-                        <div className="flex gap-4">
-                            <input
-                                type="number"
-                                value={credits}
-                                onChange={(e) => setCredits(Number(e.target.value))}
-                                className="flex-1 bg-background border border-border rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                            <button
-                                onClick={handleSaveCredits}
-                                disabled={isSavingCredits}
-                                className="bg-primary text-primary-foreground px-6 py-2 rounded-md hover:opacity-90 transition-opacity flex items-center gap-2 font-medium"
-                            >
-                                {isSavingCredits ? <span className="animate-spin">⏳</span> : <Save size={18} />}
-                                {isSavingCredits ? 'Saving...' : 'Save'}
-                            </button>
-                        </div>
-                    </SettingsItem>
-                </SettingsSection>
-
-                {/* AI Enhancement */}
-                <SettingsSection
-                    title="AI Enhancement"
-                    description="Configure how prompts are optimized before generation."
-                    action={
-                        <button
-                            onClick={handleSaveEnhancementPrompt}
-                            disabled={isSavingPrompt}
-                            className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:opacity-90 transition-opacity flex items-center gap-2 text-sm font-medium"
-                        >
-                            {isSavingPrompt ? <span className="animate-spin">⏳</span> : <Save size={16} />}
-                            {isSavingPrompt ? 'Saving...' : 'Save Config'}
-                        </button>
-                    }
-                >
-                    <SettingsItem label="Creativity (Temperature)" description={`Controls randomness: ${enhancementTemperature}`}>
-                        <div className="w-64 flex items-center gap-4">
-                            <input
-                                type="range"
-                                min="0"
-                                max="2"
-                                step="0.1"
-                                value={enhancementTemperature}
-                                onChange={(e) => setEnhancementTemperature(Number(e.target.value))}
-                                className="flex-1"
-                            />
-                            <span className="text-sm font-mono w-8 text-right">{enhancementTemperature.toFixed(1)}</span>
-                        </div>
-                    </SettingsItem>
-
-                    <SettingsItem label="Extended Thinking" description="Enable model reasoning for better quality.">
-                        <button
-                            onClick={() => setEnhancementThinking(!enhancementThinking)}
-                            className={cn(
-                                "w-12 h-6 rounded-full transition-colors relative",
-                                enhancementThinking ? "bg-primary" : "bg-muted"
-                            )}
-                        >
-                            <span className={cn(
-                                "absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform",
-                                enhancementThinking ? "translate-x-6" : "translate-x-0"
-                            )} />
-                        </button>
-                    </SettingsItem>
-
-                    <SettingsItem label="Google Search" description="Allow the model to search the web for context.">
-                        <button
-                            onClick={() => setEnhancementSearch(!enhancementSearch)}
-                            className={cn(
-                                "w-12 h-6 rounded-full transition-colors relative",
-                                enhancementSearch ? "bg-primary" : "bg-muted"
-                            )}
-                        >
-                            <span className={cn(
-                                "absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform",
-                                enhancementSearch ? "translate-x-6" : "translate-x-0"
-                            )} />
-                        </button>
-                    </SettingsItem>
-
-                    <SettingsItem label="System Prompt" description="Instructions for the enhancement model." layout="col">
-                        <div className="relative">
-                            <textarea
-                                value={enhancementPrompt}
-                                onChange={(e) => setEnhancementPrompt(e.target.value)}
-                                rows={10}
-                                className="w-full bg-secondary/20 border border-border rounded-md px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm resize-y"
-                            />
-                            <button
-                                onClick={() => setEnhancementPrompt(getDefaultEnhancementPrompt())}
-                                className="absolute top-2 right-2 text-xs text-muted-foreground hover:text-foreground bg-background/80 px-2 py-1 rounded border border-border"
-                            >
-                                Reset Default
-                            </button>
-                        </div>
-                    </SettingsItem>
-                </SettingsSection>
-
-                {/* Image Generation Defaults */}
-                <SettingsSection
-                    title="Image Generation Defaults"
-                    description="Configure default settings for image generation."
-                    action={
-                        <button
-                            onClick={handleSaveAspectRatio}
-                            disabled={isSavingAspectRatio}
-                            className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:opacity-90 transition-opacity flex items-center gap-2 text-sm font-medium"
-                        >
-                            {isSavingAspectRatio ? <span className="animate-spin">⏳</span> : <Save size={16} />}
-                            {isSavingAspectRatio ? 'Saving...' : 'Save Config'}
-                        </button>
-                    }
-                >
-                    <SettingsItem label="Default Aspect Ratio" description="Set the default aspect ratio (e.g., 791:1024) for generated images.">
-                        <select
-                            value={aspectRatio}
-                            onChange={(e) => setAspectRatio(e.target.value)}
-                            className="bg-background border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary w-48"
-                        >
-                            <option value="1:1">1:1 (Square)</option>
-                            <option value="4:5">4:5 (Portrait)</option>
-                            <option value="5:4">5:4 (Landscape)</option>
-                        </select>
-                    </SettingsItem>
-                </SettingsSection>
 
                 {/* Image Models */}
                 <SettingsSection
@@ -701,7 +467,7 @@ Convert the following Input into the optimized Output format.`;
                 {/* Edit/Add Modal */}
                 {isEditingModel && (
                     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                        <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md flex flex-col max-h-[90vh]">
+                        <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-2xl flex flex-col max-h-[90vh]">
                             <div className="flex justify-between items-center p-6 border-b border-border">
                                 <h3 className="text-lg font-semibold">
                                     {currentModel.id ? 'Edit Model' : 'Add New Model'}
@@ -714,83 +480,159 @@ Convert the following Input into the optimized Output format.`;
                                 </button>
                             </div>
 
-                            <div className="p-6 space-y-4 overflow-y-auto">
-                                <div>
-                                    <label className="block text-sm font-medium mb-1.5">Model Type</label>
-                                    <select
-                                        value={currentModel.type}
-                                        onChange={(e) => setCurrentModel(prev => ({ ...prev, type: e.target.value as 'image' | 'text' }))}
-                                        className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none"
-                                    >
-                                        <option value="image">Image Model</option>
-                                        <option value="text">Text Model</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1.5">Model Name</label>
-                                    <input
-                                        type="text"
-                                        value={currentModel.name || ''}
-                                        onChange={(e) => setCurrentModel(prev => ({ ...prev, name: e.target.value }))}
-                                        placeholder="e.g., gemini-1.5-pro"
-                                        className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1.5">Provider</label>
-                                    <select
-                                        value={currentModel.provider || 'gemini'}
-                                        onChange={(e) => setCurrentModel(prev => ({ ...prev, provider: e.target.value as 'gemini' | 'replicate' }))}
-                                        className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none"
-                                    >
-                                        <option value="gemini">Gemini</option>
-                                        <option value="replicate">Replicate</option>
-                                    </select>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1.5">Daily Limit</label>
-                                        <input
-                                            type="number"
-                                            value={currentModel.dailyLimit || ''}
-                                            onChange={(e) => setCurrentModel(prev => ({ ...prev, dailyLimit: Number(e.target.value) }))}
-                                            className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none"
-                                        />
+                            <div className="p-6 space-y-6 overflow-y-auto">
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-4">
+                                        <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wider border-b border-border pb-2">Basic Configuration</h4>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1.5">Model Type</label>
+                                            <select
+                                                value={currentModel.type}
+                                                onChange={(e) => setCurrentModel(prev => ({ ...prev, type: e.target.value as 'image' | 'text' }))}
+                                                className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none"
+                                            >
+                                                <option value="image">Image Model</option>
+                                                <option value="text">Text Model</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1.5">Model Name</label>
+                                            <input
+                                                type="text"
+                                                value={currentModel.name || ''}
+                                                onChange={(e) => setCurrentModel(prev => ({ ...prev, name: e.target.value }))}
+                                                placeholder="e.g., gemini-1.5-pro"
+                                                className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1.5">Provider</label>
+                                            <select
+                                                value={currentModel.provider || 'gemini'}
+                                                onChange={(e) => setCurrentModel(prev => ({ ...prev, provider: e.target.value as 'gemini' | 'replicate' }))}
+                                                className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none"
+                                            >
+                                                <option value="gemini">Gemini</option>
+                                                <option value="replicate">Replicate</option>
+                                            </select>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium mb-1.5">Daily Limit</label>
+                                                <input
+                                                    type="number"
+                                                    value={currentModel.dailyLimit || ''}
+                                                    onChange={(e) => setCurrentModel(prev => ({ ...prev, dailyLimit: Number(e.target.value) }))}
+                                                    className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium mb-1.5">TPM</label>
+                                                <input
+                                                    type="number"
+                                                    value={currentModel.tpm || ''}
+                                                    onChange={(e) => setCurrentModel(prev => ({ ...prev, tpm: Number(e.target.value) }))}
+                                                    className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium mb-1.5">Temperature</label>
+                                                <input
+                                                    step="0.1"
+                                                    min="0"
+                                                    max="2"
+                                                    value={currentModel.temperature ?? 1.0}
+                                                    onChange={(e) => setCurrentModel(prev => ({ ...prev, temperature: Number(e.target.value) }))}
+                                                    className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium mb-1.5">Top P</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.05"
+                                                    min="0"
+                                                    max="1"
+                                                    value={currentModel.topP ?? 0.95}
+                                                    onChange={(e) => setCurrentModel(prev => ({ ...prev, topP: Number(e.target.value) }))}
+                                                    className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none"
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1.5">TPM</label>
-                                        <input
-                                            step="0.1"
-                                            min="0"
-                                            max="2"
-                                            value={currentModel.temperature ?? 1.0}
-                                            onChange={(e) => setCurrentModel(prev => ({ ...prev, temperature: Number(e.target.value) }))}
-                                            className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1.5">Top P</label>
-                                        <input
-                                            type="number"
-                                            step="0.05"
-                                            min="0"
-                                            max="1"
-                                            value={currentModel.topP ?? 0.95}
-                                            onChange={(e) => setCurrentModel(prev => ({ ...prev, topP: Number(e.target.value) }))}
-                                            className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none"
-                                        />
-                                    </div>
+
+                                    {currentModel.type === 'image' && (
+                                        <div className="space-y-4">
+                                            <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wider border-b border-border pb-2">Enhancement Settings</h4>
+
+                                            <div>
+                                                <label className="block text-sm font-medium mb-1.5">Enhancement Prompt</label>
+                                                <textarea
+                                                    value={enhancementPrompt}
+                                                    onChange={(e) => setEnhancementPrompt(e.target.value)}
+                                                    rows={6}
+                                                    className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none font-mono text-xs resize-y"
+                                                />
+                                                <button
+                                                    onClick={() => setEnhancementPrompt(getDefaultEnhancementPrompt())}
+                                                    className="text-xs text-primary hover:underline mt-1"
+                                                >
+                                                    Reset to Default
+                                                </button>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-sm font-medium mb-1.5">Enh. Temp</label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.1"
+                                                        min="0"
+                                                        max="2"
+                                                        value={enhancementTemperature}
+                                                        onChange={(e) => setEnhancementTemperature(Number(e.target.value))}
+                                                        className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2 pt-6">
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="thinking"
+                                                            checked={enhancementThinking}
+                                                            onChange={(e) => setEnhancementThinking(e.target.checked)}
+                                                            className="rounded border-gray-300 text-primary focus:ring-primary"
+                                                        />
+                                                        <label htmlFor="thinking" className="text-sm">Thinking</label>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="search"
+                                                            checked={enhancementSearch}
+                                                            onChange={(e) => setEnhancementSearch(e.target.checked)}
+                                                            className="rounded border-gray-300 text-primary focus:ring-primary"
+                                                        />
+                                                        <label htmlFor="search" className="text-sm">Search</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
+
                                 <div>
-                                    <label className="block text-sm font-medium mb-1.5">Custom Configuration (JSON)</label>
+                                    <label className="block text-sm font-medium mb-1.5">Additional Configuration (JSON)</label>
                                     <textarea
                                         value={configJson}
                                         onChange={(e) => setConfigJson(e.target.value)}
-                                        className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none font-mono text-xs h-32"
+                                        className="w-full bg-background border border-border rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:outline-none font-mono text-xs h-24"
                                         placeholder="{ ... }"
                                     />
                                     <p className="text-[10px] text-muted-foreground mt-1">
-                                        Enter valid JSON configuration. For Replicate, this includes model-specific parameters.
+                                        Enter valid JSON configuration.
                                     </p>
                                 </div>
                             </div>
