@@ -32,3 +32,20 @@ export const presets = pgTable('presets', {
     prompt: text('prompt').notNull(),
     createdAt: timestamp('created_at').defaultNow(),
 });
+
+export const spaces = pgTable('spaces', {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    description: text('description'),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const spaceImages = pgTable('space_images', {
+    id: text('id').primaryKey(),
+    spaceId: text('space_id').notNull().references(() => spaces.id, { onDelete: 'cascade' }),
+    imageUrl: text('image_url').notNull(),
+    prompt: text('prompt'),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+});
