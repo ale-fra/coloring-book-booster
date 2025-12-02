@@ -51,3 +51,12 @@ export interface HistoryItem {
     results: GenerationResult[];
 }
 
+export const SUBSCRIPTION_LIMITS = {
+    starter: { credits: 100, features: ['basic'] },
+    pro: { credits: 500, features: ['basic', 'advanced'] },
+    max: { credits: 1000, features: ['all'] },
+} as const;
+
+export type SubscriptionTier = keyof typeof SUBSCRIPTION_LIMITS;
+export type Role = 'admin' | 'member';
+

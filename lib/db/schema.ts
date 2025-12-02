@@ -5,11 +5,16 @@ import { sql } from 'drizzle-orm';
 export const outlinefactory = pgSchema('outlinefactory');
 
 // User Tables
+export const rolesEnum = outlinefactory.enum('role', ['admin', 'member']);
+export const subscriptionTiersEnum = outlinefactory.enum('subscription_tier', ['starter', 'pro', 'max']);
+
 export const users = outlinefactory.table('users', {
     id: uuid('id').primaryKey().defaultRandom(),
     email: text('email').notNull().unique(),
     passwordHash: text('password_hash'),
-    isAdmin: boolean('is_admin').default(false),
+    role: rolesEnum('role').default('member').notNull(),
+    subscriptionTier: subscriptionTiersEnum('subscription_tier').default('starter').notNull(),
+    isAdmin: boolean('is_admin').default(false), // Deprecated, keeping for backward compatibility during migration
     credits: integer('credits').default(0),
     lastLoginAt: timestamp('last_login_at'),
     createdAt: timestamp('created_at').defaultNow(),

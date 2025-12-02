@@ -279,8 +279,26 @@ export async function getCredits() {
 
 export async function saveCredits(credits: number) {
     const user = await getCurrentUser();
+    // TODO: This should probably be admin-only or removed in favor of transactional updates
     await db.update(users).set({ credits }).where(eq(users.id, user.id));
     revalidatePath('/');
+}
+
+export async function deductCredits(amount: number) {
+    const user = await getCurrentUser();
+
+    if ((user.credits ?? 0) < amount) {
+        throw new Error('Insufficient credits');
+    }
+
+    const newCredits = (user.credits ?? 0) - amount;
+
+    await db.update(users)
+        .set({ credits: newCredits })
+        .where(eq(users.id, user.id));
+
+    revalidatePath('/');
+    return newCredits;
 }
 
 // Models Actions

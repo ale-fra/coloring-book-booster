@@ -15,6 +15,7 @@ import {
 
   getCredits,
   saveCredits,
+  deductCredits,
   addHistoryItem,
   updateHistoryItem,
   getHistory,
@@ -257,13 +258,18 @@ function HomeContent() {
         const batchResults = await Promise.all(promises);
 
         // Update results state with completed batch
+        // Update results state with completed batch
         setResults(prev => {
           const next = [...prev];
           batchResults.forEach(({ res, index }) => {
             next[index] = res;
-            allResults[index] = res;
           });
           return next;
+        });
+
+        // Update local tracking variable synchronously
+        batchResults.forEach(({ res, index }) => {
+          allResults[index] = res;
         });
 
         const successfulInBatch = batchResults.filter(({ res }) => res.imageUrl).length;
@@ -299,11 +305,16 @@ function HomeContent() {
 
       // Let's just do this:
       const totalSuccessful = allResults.filter(r => r.imageUrl).length;
-      const newCredits = credits - totalSuccessful;
+
       if (totalSuccessful > 0) {
-        setCredits(newCredits);
-        saveCredits(newCredits);
-        window.dispatchEvent(new Event('credits-updated'));
+        try {
+          const newCredits = await deductCredits(totalSuccessful);
+          setCredits(newCredits);
+          window.dispatchEvent(new Event('credits-updated'));
+        } catch (err) {
+          console.error("Failed to deduct credits:", err);
+          // Optional: Show error to user or revert UI state if needed
+        }
       }
 
       // Save to history
@@ -461,23 +472,13 @@ Convert the following Input into the optimized Output format.`;
         variants.push({ imageUrl: result.imageUrl, prompt: result.prompt });
 
         // Deduct credit
-        // Deduct credit
-        setCredits(prev => {
-          const updated = prev - 1;
-          return updated;
-        });
-
-        // Side effects outside updater
-        // We know we are subtracting 1.
-        // We can't easily get the 'updated' value from inside the updater to here without a temp variable or similar.
-        // But we can just assume the operation succeeded.
-        // A safer way for the DB update is to calculate it based on the *current* render scope 'credits' - 1, 
-        // but if the user clicked multiple times fast, 'credits' might be stale.
-        // However, 'handleRegenerate' is async and we just awaited.
-
-        // Best effort:
-        saveCredits(credits - 1);
-        window.dispatchEvent(new Event('credits-updated'));
+        try {
+          const newCredits = await deductCredits(1);
+          setCredits(newCredits);
+          window.dispatchEvent(new Event('credits-updated'));
+        } catch (err) {
+          console.error("Failed to deduct credit:", err);
+        }
       }
 
       const updatedResult = {

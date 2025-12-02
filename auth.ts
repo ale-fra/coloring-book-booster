@@ -37,13 +37,15 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
 
                     const passwordsMatch = await bcrypt.compare(password, user.passwordHash);
                     if (passwordsMatch) {
-                        const { id, email: userEmail, isAdmin, credits, lastLoginAt, createdAt, updatedAt } = user;
+                        const { id, email: userEmail, isAdmin, role, subscriptionTier, credits, lastLoginAt, createdAt, updatedAt } = user;
 
                         return {
                             id,
                             email: userEmail,
-                            isAdmin,
-                            credits,
+                            isAdmin: isAdmin ?? false,
+                            role,
+                            subscriptionTier,
+                            credits: credits ?? 0,
                             lastLoginAt,
                             createdAt,
                             updatedAt,
@@ -56,4 +58,26 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
             },
         }),
     ],
+    callbacks: {
+        async jwt({ token, user }) {
+            if (user) {
+                token.role = (user as any).role;
+                token.subscriptionTier = (user as any).subscriptionTier;
+                token.credits = (user as any).credits;
+                token.isAdmin = (user as any).isAdmin;
+                token.id = user.id;
+            }
+            return token;
+        },
+        async session({ session, token }) {
+            if (token) {
+                session.user.id = token.id as string;
+                session.user.role = token.role as any;
+                session.user.subscriptionTier = token.subscriptionTier as any;
+                session.user.credits = token.credits as number;
+                session.user.isAdmin = token.isAdmin as boolean;
+            }
+            return session;
+        },
+    },
 });
