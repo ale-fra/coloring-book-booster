@@ -8,6 +8,13 @@
       "when": 1764605396580,
       "tag": "0000_violet_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1764670641881,
+      "tag": "0001_kind_xavin",
+      "breakpoints": true
     }
   ]
 }

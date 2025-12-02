@@ -54,6 +54,10 @@ export const appSettings = outlinefactory.table('app_settings', {
     maintenanceMode: boolean('maintenance_mode').default(false),
     defaultCredits: integer('default_credits').default(250),
     announcement: text('announcement'),
+    // System Prompts Configuration
+    spaceAnalysisPrompt: text('space_analysis_prompt'),
+    spaceGenerationPrompt: text('space_generation_prompt'),
+    spaceStandardizationPrompt: text('space_standardization_prompt'),
 });
 
 export const appModels = outlinefactory.table('app_models', {
@@ -67,7 +71,7 @@ export const appModels = outlinefactory.table('app_models', {
     config: jsonb('config'), // Includes temperature, topP, etc.
 });
 
-export const spaces = pgTable('spaces', {
+export const spaces = outlinefactory.table('spaces', {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     objective: text('objective').notNull(),
@@ -80,7 +84,7 @@ export const spaces = pgTable('spaces', {
     updatedAt: timestamp('updated_at').defaultNow(),
 });
 
-export const spaceImages = pgTable('space_images', {
+export const spaceImages = outlinefactory.table('space_images', {
     id: text('id').primaryKey(),
     spaceId: text('space_id').references(() => spaces.id).notNull(),
     name: text('name'),

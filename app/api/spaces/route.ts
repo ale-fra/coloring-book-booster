@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db/drizzle';
-import { spaceImages, spaces } from '@/lib/db/schema';
+import { spaceImages, spaces, appSettings } from '@/lib/db/schema';
 import { OpenAIConnector, ReferenceImageInput } from '@/lib/openai';
 import { resolveOpenAIApiKey } from '@/lib/server/keys';
+import { auth } from '@/auth';
 
 type SerializableValue = string | number | boolean | null | undefined | SerializableValue[] | { [key: string]: SerializableValue };
 
@@ -23,6 +24,11 @@ function normalizeContent(content: SerializableValue) {
 }
 
 export async function GET() {
+    const session = await auth();
+    if (!session) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const [spaceRows, imageRows] = await Promise.all([
         db.select().from(spaces),
         db.select().from(spaceImages),
@@ -53,6 +59,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+    const session = await auth();
+    if (!session) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { name, objective, constraints, theme, styleDefinition, references = [] } = body;
 
@@ -65,21 +76,29 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Configura una OPENAI_API_KEY nel server (.env) per creare uno Space.' }, { status: 400 });
     }
 
-    const connector = new OpenAIConnector(apiKey);
+    // Fetch system prompts from app settings
+    const settings = await db.select().from(appSettings).limit(1);
+    const systemPrompts = {
+        analysis: settings[0]?.spaceAnalysisPrompt,
+        generation: settings[0]?.spaceGenerationPrompt,
+    };
+
+    const connector = new OpenAIConnector(apiKey, 'gpt-4o-mini', systemPrompts);
 
     const sanitizedReferences: ReferenceImageInput[] = Array.isArray(references)
         ? references.slice(0, 10).map((ref: ReferenceImageInput) => ({
-              dataUrl: ref.dataUrl,
-              name: ref.name,
-              mimeType: ref.mimeType,
-          }))
+            dataUrl: ref.dataUrl,
+            name: ref.name,
+            mimeType: ref.mimeType,
+        }))
         : [];
 
     const analyses: string[] = [];
     const referencePayload: { id: string; dataUrl: string; mimeType?: string; name?: string; analysis?: string }[] = [];
 
-    for (const ref of sanitizedReferences) {
-        if (!ref.dataUrl) continue;
+    // Parallelize analysis
+    await Promise.all(sanitizedReferences.map(async (ref) => {
+        if (!ref.dataUrl) return;
         const analysis = await connector.analyzeReference(ref);
         analyses.push(analysis);
         referencePayload.push({
@@ -89,7 +108,7 @@ export async function POST(request: Request) {
             name: ref.name,
             analysis,
         });
-    }
+    }));
 
     const prompt = await connector.buildSpacePrompt({
         name,

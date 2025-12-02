@@ -2,9 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, History, Settings, Palette, ChevronLeft, ChevronRight, Coins, Sparkles } from 'lucide-react';
-import { Home, History, Settings, Palette, ChevronLeft, ChevronRight, Coins, User } from 'lucide-react';
- 
+import { Home, History, Settings, Palette, ChevronLeft, ChevronRight, Coins, Sparkles, User } from 'lucide-react';
+
 import { cn } from '../lib/utils';
 import { useEffect, useState } from 'react';
 import { getCredits } from '../app/actions';

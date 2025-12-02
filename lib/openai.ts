@@ -21,10 +21,20 @@ export interface SpacePromptRequest {
 export class OpenAIConnector {
     private apiKey: string;
     private model: string;
+    private systemPrompts: {
+        analysis?: string | null;
+        generation?: string | null;
+        standardization?: string | null;
+    };
 
-    constructor(apiKey: string, model: string = 'gpt-4o-mini') {
+    constructor(
+        apiKey: string,
+        model: string = 'gpt-4o-mini',
+        systemPrompts: { analysis?: string | null; generation?: string | null; standardization?: string | null } = {}
+    ) {
         this.apiKey = apiKey;
         this.model = model;
+        this.systemPrompts = systemPrompts;
     }
 
     private async chat(messages: ChatMessage[], temperature = 0.3): Promise<string> {
@@ -58,16 +68,18 @@ export class OpenAIConnector {
     }
 
     async analyzeReference(reference: ReferenceImageInput): Promise<string> {
+        const defaultPrompt =
+            'Analyze this reference image and provide 3-5 concise bullet points covering: line style, color palette (or lack thereof), complexity, composition, and recurring elements to maintain or avoid.';
+
         const messages: ChatMessage[] = [
             {
                 role: 'system',
-                content:
-                    'Analizza questa immagine di riferimento e restituisci in 3-5 bullet sintetici: stile delle linee, palette o assenza di colori, complessità, composizione e elementi ricorrenti da mantenere o evitare.',
+                content: this.systemPrompts.analysis || defaultPrompt,
             },
             {
                 role: 'user',
                 content: [
-                    { type: 'text', text: 'Reference da analizzare e sintetizzare per lo Space.' },
+                    { type: 'text', text: 'Reference to analyze and synthesize for the Space.' },
                     { type: 'image_url', image_url: { url: reference.dataUrl } },
                 ],
             },
@@ -80,22 +92,24 @@ export class OpenAIConnector {
         const { name, objective, constraints, theme, styleDefinition, imageAnalyses } = request;
         const guidance = [
             `Space: ${name}`,
-            `Obiettivo: ${objective}`,
-            theme ? `Tema ricorrente: ${theme}` : null,
-            constraints ? `Vincoli dichiarati: ${constraints}` : null,
-            styleDefinition ? `Definizione utente dello stile: ${styleDefinition}` : null,
+            `Objective: ${objective}`,
+            theme ? `Recurring Theme: ${theme}` : null,
+            constraints ? `Constraints: ${constraints}` : null,
+            styleDefinition ? `User Style Definition: ${styleDefinition}` : null,
             imageAnalyses.length > 0
-                ? `Analisi immagini di riferimento: ${imageAnalyses.map((item, idx) => `(${idx + 1}) ${item}`).join(' ')}`
+                ? `Reference Image Analyses: ${imageAnalyses.map((item, idx) => `(${idx + 1}) ${item}`).join(' ')}`
                 : null,
         ]
             .filter(Boolean)
             .join('\n');
 
+        const defaultPrompt =
+            'You are a prompt engineer. You receive descriptions and reference analyses to build a unique, concise, and complete Space Prompt. The prompt must be reusable, describing tone, composition, lines, allowed complexity, elements to avoid, palette, and output format. Return only the final prompt text.';
+
         const messages: ChatMessage[] = [
             {
                 role: 'system',
-                content:
-                    'Sei un prompt engineer. Ricevi descrizioni e analisi di reference per costruire uno Space Prompt unico, conciso e completo. Il prompt deve essere riutilizzabile, descrivere tono, composizione, linee, complessità consentita, elementi da evitare, palette e formato di output. Restituisci solo il testo del prompt finale.',
+                content: this.systemPrompts.generation || defaultPrompt,
             },
             {
                 role: 'user',
@@ -107,15 +121,17 @@ export class OpenAIConnector {
     }
 
     async standardizeRequest(spacePrompt: string, userRequest: string): Promise<string> {
+        const defaultPrompt =
+            'Take the following Space Prompt as a fixed style rule. Receive a user request and transform it into a standardized, clean, and consistent prompt that faithfully respects the Space. Include necessary corrections and adjustments to maintain composition, detail level, and established prohibitions.';
+
         const messages: ChatMessage[] = [
             {
                 role: 'system',
-                content:
-                    'Prendi il seguente Space Prompt come regola fissa di stile. Ricevi una richiesta utente e trasformala in un prompt standardizzato, pulito e coerente che rispetti fedelmente lo Space. Includi correzioni e aggiustamenti necessari per mantenere composizione, livello di dettaglio e divieti stabiliti.',
+                content: this.systemPrompts.standardization || defaultPrompt,
             },
             {
                 role: 'user',
-                content: `SPACE PROMPT:\n${spacePrompt}\n\nRICHIESTA UTENTE:\n${userRequest}\n\nRestituisci solo il prompt finale standardizzato.`,
+                content: `SPACE PROMPT:\n${spacePrompt}\n\nUSER REQUEST:\n${userRequest}\n\nReturn only the final standardized prompt.`,
             },
         ];
 
