@@ -1,5 +1,7 @@
+import OpenAI from 'openai';
+
 interface ChatMessage {
-    role: 'system' | 'user';
+    role: 'system' | 'user' | 'assistant';
     content: string | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }>;
 }
 
@@ -19,7 +21,7 @@ export interface SpacePromptRequest {
 }
 
 export class OpenAIConnector {
-    private apiKey: string;
+    private client: OpenAI;
     private model: string;
     private systemPrompts: {
         analysis?: string | null;
@@ -29,42 +31,28 @@ export class OpenAIConnector {
 
     constructor(
         apiKey: string,
-        model: string = 'gpt-4o-mini',
+        model: string = 'gpt-5-nano',
         systemPrompts: { analysis?: string | null; generation?: string | null; standardization?: string | null } = {}
     ) {
-        this.apiKey = apiKey;
+        this.client = new OpenAI({ apiKey });
         this.model = model;
         this.systemPrompts = systemPrompts;
     }
 
     private async chat(messages: ChatMessage[], temperature = 0.3): Promise<string> {
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${this.apiKey}`,
-            },
-            body: JSON.stringify({
+        try {
+            const response = await this.client.chat.completions.create({
                 model: this.model,
+                messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
                 temperature,
-                messages,
-            }),
-        });
+            });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`OpenAI error: ${response.status} ${errorText}`);
+            return response.choices[0]?.message?.content?.trim() || '';
+        } catch (error: unknown) {
+            const err = error as Error;
+            console.error('OpenAI API Error:', err);
+            throw new Error(`OpenAI error: ${err.message}`);
         }
-
-        const data = await response.json();
-        const choice = data.choices?.[0];
-        const content = choice?.message?.content;
-
-        if (Array.isArray(content)) {
-            return content.map((part: { text?: string }) => part?.text || '').join(' ').trim();
-        }
-
-        return (content as string | undefined)?.trim() || '';
     }
 
     async analyzeReference(reference: ReferenceImageInput): Promise<string> {
@@ -136,5 +124,46 @@ export class OpenAIConnector {
         ];
 
         return this.chat(messages, 0.3);
+    }
+
+    async synthesizeSpaceParams(name: string, analyses: string[]): Promise<{ objective: string; constraints: string; styleDefinition: string }> {
+        const prompt = `
+            Based on the following image analyses for a style named "${name}", synthesize the core parameters for a generative AI model.
+            
+            Analyses:
+            ${analyses.map((a, i) => `${i + 1}. ${a}`).join('\n')}
+            
+            Return a JSON object with exactly these keys:
+            - objective: A clear, positive description of what the style achieves (visual characteristics, mood).
+            - constraints: What should be avoided to maintain this style (negative constraints).
+            - styleDefinition: A concise, high-level definition of the style (e.g. "Vintage Comic Book", "Minimalist Line Art").
+            
+            Do not include markdown formatting, just the raw JSON string.
+        `;
+
+        const messages: ChatMessage[] = [
+            {
+                role: 'system',
+                content: 'You are an expert art director and prompt engineer. Output valid JSON only.',
+            },
+            {
+                role: 'user',
+                content: prompt,
+            },
+        ];
+
+        const response = await this.chat(messages, 0.2);
+        try {
+            // clean markdown code blocks if present
+            const cleanJson = response.replace(/```json/g, '').replace(/```/g, '').trim();
+            return JSON.parse(cleanJson);
+        } catch (error) {
+            console.error("Failed to parse synthesis JSON", response, error);
+            return {
+                objective: "Failed to synthesize objective.",
+                constraints: "Failed to synthesize constraints.",
+                styleDefinition: "Failed to synthesize style definition."
+            };
+        }
     }
 }

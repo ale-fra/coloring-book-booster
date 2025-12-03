@@ -73,6 +73,7 @@ export const appModels = outlinefactory.table('app_models', {
 
 export const spaces = outlinefactory.table('spaces', {
     id: text('id').primaryKey(),
+    userId: uuid('user_id').notNull().references(() => users.id),
     name: text('name').notNull(),
     objective: text('objective').notNull(),
     theme: text('theme'),
