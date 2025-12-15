@@ -50,17 +50,7 @@ export const userPresets = outlinefactory.table('user_presets', {
 
 // App/Global Tables
 // App/Global Tables
-// @deprecated - Use system_configs instead
-export const appSettings = outlinefactory.table('app_settings', {
-    id: uuid('id').primaryKey().defaultRandom(),
-    maintenanceMode: boolean('maintenance_mode').default(false),
-    defaultCredits: integer('default_credits').default(250),
-    announcement: text('announcement'),
-    // System Prompts Configuration
-    spaceAnalysisPrompt: text('space_analysis_prompt'),
-    spaceGenerationPrompt: text('space_generation_prompt'),
-    spaceStandardizationPrompt: text('space_standardization_prompt'),
-});
+// App/Global Tables
 
 export const systemConfigs = outlinefactory.table('system_configs', {
     key: text('key').primaryKey(),

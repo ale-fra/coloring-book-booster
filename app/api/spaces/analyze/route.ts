@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { OpenAIConnector, ReferenceImageInput } from "@/lib/openai";
 import { resolveOpenAIApiKey } from "@/lib/server/keys";
 import { db } from "@/lib/db/drizzle";
-import { appSettings } from "@/lib/db/schema";
 import { auth } from "@/auth";
 
 export async function POST(req: Request) {

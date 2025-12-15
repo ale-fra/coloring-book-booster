@@ -1,9 +1,10 @@
 'use server';
 
 import { db } from '@/lib/db/drizzle';
-import { appModels, appSettings, users, userSettings, userHistory, userPresets } from '@/lib/db/schema';
+import { appModels, users, userSettings, userHistory, userPresets } from '@/lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { ModelConfig, Preset, HistoryItem, GenerationResult } from '@/lib/db';
+import { getSystemConfig } from '@/lib/config';
 import { revalidatePath } from 'next/cache';
 import Replicate from "replicate";
 import serverLogger from '@/lib/server-logger';
@@ -103,7 +104,10 @@ export async function registerUser(prevState: string | undefined, formData: Form
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const defaultCredits = (await db.query.appSettings.findFirst())?.defaultCredits || 250;
+
+    // Get default credits from system config
+    const defaultCreditsStr = await getSystemConfig('default_credits', '250');
+    const defaultCredits = parseInt(defaultCreditsStr, 10);
 
     const [newUser] = await db.insert(users).values({
         email,

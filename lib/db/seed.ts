@@ -2,7 +2,7 @@
 import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env' });
 import { db } from './drizzle';
-import { appModels, appSettings, users, userSettings } from './schema';
+import { appModels, systemConfigs, users, userSettings } from './schema';
 import { eq } from 'drizzle-orm';
 
 const initialModels = [
@@ -94,17 +94,16 @@ async function seed() {
             }
         }
 
-        // Seed App Settings (Global)
-        const existingAppSettings = await db.select().from(appSettings);
-        if (existingAppSettings.length === 0) {
-            await db.insert(appSettings).values({
-                defaultCredits: 250,
-                maintenanceMode: false
-            });
-            console.log('Inserted global app settings');
-        } else {
-            console.log('Global app settings already exist');
+        // Seed System Configs
+        const defaultConfigs = [
+            { key: 'default_credits', value: '250', description: 'Default credits for new users', group: 'system' },
+            { key: 'maintenance_mode', value: 'false', description: 'Enable maintenance mode', group: 'system' }
+        ];
+
+        for (const config of defaultConfigs) {
+            await db.insert(systemConfigs).values(config).onConflictDoNothing();
         }
+        console.log('Seeded system configs');
 
         // Seed Demo User
         const demoEmail = 'demo@example.com';

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db/drizzle';
-import { spaces, appSettings } from '@/lib/db/schema';
+import { spaces } from '@/lib/db/schema';
 import { OpenAIConnector } from '@/lib/openai';
 import { resolveOpenAIApiKey } from '@/lib/server/keys';
 import { eq } from 'drizzle-orm';
