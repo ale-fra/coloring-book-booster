@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from 'react';
-import { GenerationPage } from '../components/generation/GenerationPage';
+import { GenerationPage } from '@/components/generation/GenerationPage';
 import { Palette } from 'lucide-react';
 
 export default function Home() {

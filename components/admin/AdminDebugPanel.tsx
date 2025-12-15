@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Activity, X, ChevronRight, ChevronDown, RefreshCw, Database } from "lucide-react";
+import { Activity, X, ChevronRight, ChevronDown, RefreshCw, Database, Maximize2 } from "lucide-react";
 import useSWR from "swr";
 
 interface AILog {
@@ -17,8 +17,8 @@ interface AILog {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-export function AdminDebugPanel() {
-    const [isOpen, setIsOpen] = useState(false);
+export function AdminDebugPanel({ isPopup = false }: { isPopup?: boolean }) {
+    const [isOpen, setIsOpen] = useState(isPopup);
     const [selectedLog, setSelectedLog] = useState<string | null>(null);
 
     // Only fetch when open
@@ -30,7 +30,26 @@ export function AdminDebugPanel() {
 
     const logs: AILog[] = data?.logs || [];
 
-    if (!isOpen) {
+    // Helper for date formatting
+    const formatLogDate = (timestamp: string) => {
+        const date = new Date(timestamp);
+        const now = new Date();
+        const isToday = date.getDate() === now.getDate() &&
+            date.getMonth() === now.getMonth() &&
+            date.getFullYear() === now.getFullYear();
+
+        if (isToday) {
+            return date.toLocaleTimeString();
+        }
+        return date.toLocaleString();
+    };
+
+    const openPopup = () => {
+        window.open('/debug/popup', 'DebugPanel', 'width=600,height=800,scrollbars=yes,resizable=yes');
+        setIsOpen(false);
+    };
+
+    if (!isOpen && !isPopup) {
         return (
             <button
                 onClick={() => setIsOpen(true)}
@@ -42,9 +61,13 @@ export function AdminDebugPanel() {
         );
     }
 
+    const containerClasses = isPopup
+        ? "h-screen w-full bg-background flex flex-col"
+        : "fixed inset-y-0 right-0 z-50 w-[500px] bg-background border-l border-border shadow-2xl flex flex-col";
+
     return (
-        <div className="fixed inset-y-0 right-0 z-50 w-[500px] bg-background border-l border-border shadow-2xl flex flex-col">
-            <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30">
+        <div className={containerClasses}>
+            <div className={`p-4 border-b border-border flex items-center justify-between bg-muted/30`}>
                 <div className="flex items-center gap-2">
                     <Database className="h-5 w-5 text-primary" />
                     <h2 className="font-semibold">AI Interaction Logs</h2>
@@ -60,12 +83,23 @@ export function AdminDebugPanel() {
                     >
                         <RefreshCw className="h-4 w-4" />
                     </button>
-                    <button
-                        onClick={() => setIsOpen(false)}
-                        className="p-1 hover:bg-muted rounded-md text-muted-foreground"
-                    >
-                        <X className="h-5 w-5" />
-                    </button>
+                    {!isPopup && (
+                        <>
+                            <button
+                                onClick={openPopup}
+                                className="p-1 hover:bg-muted rounded-md text-muted-foreground"
+                                title="Open in Popup"
+                            >
+                                <Maximize2 className="h-4 w-4" />
+                            </button>
+                            <button
+                                onClick={() => setIsOpen(false)}
+                                className="p-1 hover:bg-muted rounded-md text-muted-foreground"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -94,7 +128,7 @@ export function AdminDebugPanel() {
                                         <span className={`w-2 h-2 rounded-full ${log.status === 'success' ? 'bg-green-500' : 'bg-red-500'}`} />
                                         <span className="font-medium uppercase text-xs tracking-wider text-muted-foreground">{log.provider}</span>
                                         <span className="text-xs text-muted-foreground ml-auto font-mono">
-                                            {new Date(log.timestamp).toLocaleTimeString()}
+                                            {formatLogDate(log.timestamp)}
                                         </span>
                                     </div>
                                     <p className="font-medium truncate">{log.model}</p>

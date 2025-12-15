@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { GenerationService } from "@/lib/generation";
 import { getApiKey, getModels } from "@/app/actions";
+import { getSystemConfig } from "@/lib/config";
+import { DEFAULT_SPACE_PROMPT_GENERATION_PROMPT } from "@/lib/prompts";
 import { auth } from "@/auth";
 
 export async function POST(req: Request) {
@@ -49,9 +51,12 @@ export async function POST(req: Request) {
             textModel.topP
         );
 
+        const systemPromptTemplate = await getSystemConfig('space_prompt_generation_prompt', DEFAULT_SPACE_PROMPT_GENERATION_PROMPT);
+
         const prompt = await service.generateSpacePrompt(
             { name, objective, constraints, styleDefinition, targetModel },
-            textModel.name
+            textModel.name,
+            systemPromptTemplate
         );
 
         return NextResponse.json({ prompt });

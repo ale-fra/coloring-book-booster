@@ -11,10 +11,10 @@ import {
     setDefaultModel,
 
     initializeDefaultModels
-} from '../../app/actions';
-import { type ModelConfig } from '../../lib/db';
+} from '@/app/actions';
+import { type ModelConfig } from '@/lib/db';
 import { useTheme } from 'next-themes';
-import { cn } from '../../lib/utils';
+import { cn } from '@/lib/utils';
 
 interface SettingsSectionProps {
     title: string;

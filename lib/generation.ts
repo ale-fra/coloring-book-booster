@@ -5,8 +5,6 @@ import logger from './logger';
 import { logAIInteraction } from './ai-logger';
 import { GenerationResult } from './generation-types';
 import { RateLimiter } from "./rate-limiter";
-import { getSystemConfig } from './config';
-import { DEFAULT_SPACE_PROMPT_GENERATION_PROMPT } from './prompts';
 
 export class GenerationService {
     private client: GoogleGenAI;
@@ -331,14 +329,14 @@ export class GenerationService {
             styleDefinition: string;
             targetModel: 'gemini' | 'flux';
         },
-        textModelName: string
+        textModelName: string,
+        systemPromptTemplate: string
     ): Promise<string> {
         const startTime = Date.now();
         let status: 'success' | 'error' = 'success';
         let output = '';
 
         try {
-            const systemPromptTemplate = await getSystemConfig('space_prompt_generation_prompt', DEFAULT_SPACE_PROMPT_GENERATION_PROMPT);
 
             const systemPrompt = systemPromptTemplate
                 .replace('{targetModel}', params.targetModel === 'flux' ? 'Flux (Black Forest Labs)' : 'Google Gemini / Imagen')

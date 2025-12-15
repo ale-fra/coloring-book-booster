@@ -1,3 +1,4 @@
+import 'server-only';
 import { db } from '@/lib/db/drizzle';
 import { systemConfigs } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
