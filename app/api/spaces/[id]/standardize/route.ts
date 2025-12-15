@@ -16,30 +16,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const { userRequest } = await request.json();
     if (!userRequest || !id) {
-        return NextResponse.json({ error: 'Richiesta utente e spaceId sono obbligatori' }, { status: 400 });
+        return NextResponse.json({ error: 'User request and spaceId are required' }, { status: 400 });
     }
 
     const apiKey = await resolveOpenAIApiKey();
     if (!apiKey) {
-        return NextResponse.json({ error: 'Configura una OPENAI_API_KEY nel server (.env) per usare gli Space.' }, { status: 400 });
+        return NextResponse.json({ error: 'OpenAI API Key not configured in server (.env) to use Spaces.' }, { status: 400 });
     }
 
     const space = (await db.select().from(spaces).where(eq(spaces.id, id)))[0];
     if (!space) {
-        return NextResponse.json({ error: 'Space non trovato' }, { status: 404 });
+        return NextResponse.json({ error: 'Space not found' }, { status: 404 });
     }
 
     if (!space.prompt) {
-        return NextResponse.json({ error: 'Space privo di Space Prompt, rigenera prima il prompt.' }, { status: 400 });
+        return NextResponse.json({ error: 'Space missing Space Prompt, please regenerate the prompt first.' }, { status: 400 });
     }
 
-    // Fetch system prompts from app settings
-    const settings = await db.select().from(appSettings).limit(1);
-    const systemPrompts = {
-        standardization: settings[0]?.spaceStandardizationPrompt,
-    };
-
-    const connector = new OpenAIConnector(apiKey, 'gpt-4o-mini', systemPrompts);
+    // System prompts are now handled internally by the connector via system_configs
+    const connector = new OpenAIConnector(apiKey, 'gpt-4o-mini');
     const prompt = await connector.standardizeRequest(space.prompt, userRequest);
 
     return NextResponse.json({ prompt });

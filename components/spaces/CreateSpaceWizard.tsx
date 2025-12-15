@@ -23,6 +23,10 @@ export function CreateSpaceWizard({ onCancel, onSuccess }: CreateSpaceWizardProp
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const [targetModel, setTargetModel] = useState<'gemini' | 'flux'>('gemini');
+    const [generatedPrompt, setGeneratedPrompt] = useState("");
+    const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
+
     const handleAnalyze = async () => {
         if (!form.name || references.length === 0) {
             setError("Please provide a name and at least one image.");
@@ -60,6 +64,36 @@ export function CreateSpaceWizard({ onCancel, onSuccess }: CreateSpaceWizardProp
         }
     };
 
+    const handleGeneratePrompt = async () => {
+        setIsGeneratingPrompt(true);
+        setError(null);
+
+        try {
+            const response = await fetch("/api/spaces/generate-prompt", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: form.name,
+                    objective: form.objective,
+                    constraints: form.constraints,
+                    styleDefinition: form.styleDefinition,
+                    targetModel
+                }),
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to generate prompt");
+            }
+
+            setGeneratedPrompt(data.prompt);
+        } catch (err) {
+            setError("Failed to generate prompt. Please try again.");
+        } finally {
+            setIsGeneratingPrompt(false);
+        }
+    };
+
     const handleCreate = async () => {
         setIsSaving(true);
         setError(null);
@@ -68,7 +102,7 @@ export function CreateSpaceWizard({ onCancel, onSuccess }: CreateSpaceWizardProp
             const response = await fetch("/api/spaces", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...form, references }),
+                body: JSON.stringify({ ...form, prompt: generatedPrompt, references }),
             });
 
             if (!response.ok) {
@@ -102,6 +136,8 @@ export function CreateSpaceWizard({ onCancel, onSuccess }: CreateSpaceWizardProp
                 <span className={step >= 2 ? "text-primary font-medium" : ""}>2. Analysis</span>
                 <ArrowRight className="h-4 w-4" />
                 <span className={step >= 3 ? "text-primary font-medium" : ""}>3. Review</span>
+                <ArrowRight className="h-4 w-4" />
+                <span className={step >= 4 ? "text-primary font-medium" : ""}>4. Prompt</span>
             </div>
 
             {step === 1 && (
@@ -120,6 +156,7 @@ export function CreateSpaceWizard({ onCancel, onSuccess }: CreateSpaceWizardProp
                         <label className="text-sm font-medium">Reference Images (Max 10)</label>
                         <ImageUploader
                             onImagesChange={setReferences}
+                            initialImages={references}
                             maxImages={10}
                             maxWidth={1024}
                         />
@@ -190,8 +227,80 @@ export function CreateSpaceWizard({ onCancel, onSuccess }: CreateSpaceWizardProp
                             <ArrowLeft className="h-4 w-4" /> Back
                         </button>
                         <button
+                            onClick={() => setStep(4)}
+                            className="bg-primary text-primary-foreground px-4 py-2 rounded-md flex items-center gap-2"
+                        >
+                            Next: Generate Prompt <ArrowRight className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {step === 4 && (
+                <div className="space-y-6">
+                    <div className="space-y-4">
+                        <h3 className="text-lg font-medium">Generate Space Prompt</h3>
+                        <p className="text-sm text-muted-foreground">Select the target model to generate an optimized system prompt.</p>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <button
+                                onClick={() => setTargetModel('gemini')}
+                                className={`p-4 border rounded-lg text-left transition-colors ${targetModel === 'gemini' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:border-primary/50'}`}
+                            >
+                                <div className="font-medium mb-1">Gemini / Imagen</div>
+                                <div className="text-xs text-muted-foreground">Natural language descriptions. Best for Google models.</div>
+                            </button>
+
+                            <button
+                                onClick={() => setTargetModel('flux')}
+                                className={`p-4 border rounded-lg text-left transition-colors ${targetModel === 'flux' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:border-primary/50'}`}
+                            >
+                                <div className="font-medium mb-1">Flux (BFL)</div>
+                                <div className="text-xs text-muted-foreground">Tag-based, technical keywords. Best for Flux models.</div>
+                            </button>
+                        </div>
+
+                        <div className="flex justify-end">
+                            <button
+                                onClick={handleGeneratePrompt}
+                                disabled={isGeneratingPrompt}
+                                className="bg-secondary text-secondary-foreground px-4 py-2 rounded-md flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {isGeneratingPrompt ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin" /> Generating...
+                                    </>
+                                ) : (
+                                    <>
+                                        Generate Prompt
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">System Prompt</label>
+                            <textarea
+                                value={generatedPrompt}
+                                onChange={(e) => setGeneratedPrompt(e.target.value)}
+                                placeholder="Generated prompt will appear here..."
+                                className="w-full bg-background border border-border rounded-md px-3 py-2 min-h-[150px] font-mono text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    {error && <p className="text-sm text-destructive">{error}</p>}
+
+                    <div className="flex justify-between">
+                        <button
+                            onClick={() => setStep(3)}
+                            className="text-muted-foreground hover:text-foreground flex items-center gap-2"
+                        >
+                            <ArrowLeft className="h-4 w-4" /> Back
+                        </button>
+                        <button
                             onClick={handleCreate}
-                            disabled={isSaving}
+                            disabled={isSaving || !generatedPrompt}
                             className="bg-primary text-primary-foreground px-4 py-2 rounded-md flex items-center gap-2 disabled:opacity-50"
                         >
                             {isSaving ? (

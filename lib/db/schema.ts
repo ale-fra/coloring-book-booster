@@ -49,6 +49,8 @@ export const userPresets = outlinefactory.table('user_presets', {
 });
 
 // App/Global Tables
+// App/Global Tables
+// @deprecated - Use system_configs instead
 export const appSettings = outlinefactory.table('app_settings', {
     id: uuid('id').primaryKey().defaultRandom(),
     maintenanceMode: boolean('maintenance_mode').default(false),
@@ -58,6 +60,13 @@ export const appSettings = outlinefactory.table('app_settings', {
     spaceAnalysisPrompt: text('space_analysis_prompt'),
     spaceGenerationPrompt: text('space_generation_prompt'),
     spaceStandardizationPrompt: text('space_standardization_prompt'),
+});
+
+export const systemConfigs = outlinefactory.table('system_configs', {
+    key: text('key').primaryKey(),
+    value: text('value').notNull(),
+    description: text('description'),
+    group: text('group'),
 });
 
 export const appModels = outlinefactory.table('app_models', {
@@ -93,4 +102,16 @@ export const spaceImages = outlinefactory.table('space_images', {
     dataUrl: text('data_url'),
     analysis: text('analysis'),
     createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const aiLogs = outlinefactory.table('ai_logs', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    timestamp: timestamp('timestamp').defaultNow(),
+    provider: text('provider').notNull(),
+    model: text('model'),
+    input: text('input'),
+    output: text('output'),
+    status: text('status'),
+    durationMs: integer('duration_ms'),
+    userId: uuid('user_id'),
 });

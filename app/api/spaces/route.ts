@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db/drizzle';
-import { spaceImages, spaces, appSettings } from '@/lib/db/schema';
+import { spaceImages, spaces } from '@/lib/db/schema';
 import { OpenAIConnector, ReferenceImageInput } from '@/lib/openai';
 import { resolveOpenAIApiKey } from '@/lib/server/keys';
 import { auth } from '@/auth';
@@ -116,14 +116,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'OpenAI API Key not configured.' }, { status: 500 });
     }
 
-    // Fetch system prompts from app settings
-    const settings = await db.select().from(appSettings).limit(1);
-    const systemPrompts = {
-        analysis: settings[0]?.spaceAnalysisPrompt,
-        generation: settings[0]?.spaceGenerationPrompt,
-    };
-
-    const connector = new OpenAIConnector(apiKey, 'gpt-5-nano', systemPrompts);
+    const connector = new OpenAIConnector(apiKey, 'gpt-5-nano');
 
     const sanitizedReferences: ReferenceImageInput[] = Array.isArray(references)
         ? references.slice(0, 10).map((ref: ReferenceImageInput) => ({

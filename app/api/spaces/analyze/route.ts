@@ -30,13 +30,8 @@ export async function POST(req: Request) {
             );
         }
 
-        // Fetch system prompts
-        const settings = await db.select().from(appSettings).limit(1);
-        const systemPrompts = {
-            analysis: settings[0]?.spaceAnalysisPrompt,
-        };
-
-        const connector = new OpenAIConnector(apiKey, 'gpt-5-nano', systemPrompts);
+        // System prompts are now handled internally by the connector via system_configs
+        const connector = new OpenAIConnector(apiKey, 'gpt-5-nano');
 
         // Analyze the first image (or multiple if we wanted to be fancy, but let's start with one or parallelize)
         // For the wizard, we usually analyze them to get a collective idea, but the prompt expects us to return
@@ -81,7 +76,10 @@ export async function POST(req: Request) {
 
     } catch (error: unknown) {
         const err = error as Error;
-        console.error("Error analyzing space:", err);
+        console.error("!!! CRITICAL ERROR analyzing space !!!");
+        console.error("Error Name:", err.name);
+        console.error("Error Message:", err.message);
+        console.error("Error Stack:", err.stack);
         return NextResponse.json(
             { error: err.message || "Failed to analyze space" },
             { status: 500 }

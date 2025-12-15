@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 
 interface ImageUploaderProps {
     onImagesChange: (images: { dataUrl: string; mimeType: string; name: string }[]) => void;
+    initialImages?: { dataUrl: string; mimeType: string; name: string }[];
     maxImages?: number;
     maxWidth?: number;
     maxHeight?: number;
@@ -13,12 +14,13 @@ interface ImageUploaderProps {
 
 export function ImageUploader({
     onImagesChange,
+    initialImages = [],
     maxImages = 10,
     maxWidth = 1024,
     maxHeight = 1024,
     quality = 0.8,
 }: ImageUploaderProps) {
-    const [images, setImages] = useState<{ dataUrl: string; mimeType: string; name: string }[]>([]);
+    const [images, setImages] = useState<{ dataUrl: string; mimeType: string; name: string }[]>(initialImages);
     const [isProcessing, setIsProcessing] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
 
@@ -122,8 +124,8 @@ export function ImageUploader({
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragging
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/50 hover:bg-muted/50"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/50 hover:bg-muted/50"
                     } ${isProcessing || images.length >= maxImages ? "opacity-50 cursor-not-allowed" : ""}`}
             >
                 <input

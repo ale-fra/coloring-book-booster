@@ -1,4 +1,12 @@
 import OpenAI from 'openai';
+import { logAIInteraction } from './ai-logger';
+import { getSystemConfig } from './config';
+import {
+    DEFAULT_ANALYSIS_PROMPT,
+    DEFAULT_GENERATION_PROMPT,
+    DEFAULT_STANDARDIZATION_PROMPT,
+    DEFAULT_SYNTHESIS_PROMPT
+} from './prompts';
 
 interface ChatMessage {
     role: 'system' | 'user' | 'assistant';
@@ -23,46 +31,69 @@ export interface SpacePromptRequest {
 export class OpenAIConnector {
     private client: OpenAI;
     private model: string;
-    private systemPrompts: {
-        analysis?: string | null;
-        generation?: string | null;
-        standardization?: string | null;
-    };
-
     constructor(
         apiKey: string,
-        model: string = 'gpt-5-nano',
-        systemPrompts: { analysis?: string | null; generation?: string | null; standardization?: string | null } = {}
+        model: string = 'gpt-5-nano'
     ) {
         this.client = new OpenAI({ apiKey });
         this.model = model;
-        this.systemPrompts = systemPrompts;
     }
 
     private async chat(messages: ChatMessage[], temperature = 0.3): Promise<string> {
+        const startTime = Date.now();
+        let responseContent = '';
+        let status: 'success' | 'error' = 'success';
+        let errorMsg = '';
+
         try {
-            const response = await this.client.chat.completions.create({
+            const requestBody: OpenAI.Chat.ChatCompletionCreateParams = {
                 model: this.model,
                 messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
-                temperature,
-            });
+            };
 
-            return response.choices[0]?.message?.content?.trim() || '';
+            // O1 models and gpt-5-nano (if it behaves like o1) do not support temperature
+            // or only support default (1).
+            // We'll exclude temperature for these specific models or if it is 1.
+            const isO1 = this.model.startsWith('o1-') || this.model === 'gpt-5-nano';
+            if (!isO1) {
+                requestBody.temperature = temperature;
+            } else if (temperature !== 1) {
+                // If it is O1/gpt-5-nano and temp is NOT 1, we log a warning but don't send it
+                // to avoid the 400 error.
+                console.warn(`Warning: Temperature ${temperature} is not supported for model ${this.model}. Using default.`);
+            }
+
+            const response = await this.client.chat.completions.create(requestBody);
+
+            responseContent = response.choices[0]?.message?.content?.trim() || '';
+            return responseContent;
         } catch (error: unknown) {
+            status = 'error';
             const err = error as Error;
+            errorMsg = err.message;
             console.error('OpenAI API Error:', err);
             throw new Error(`OpenAI error: ${err.message}`);
+        } finally {
+            const duration = Date.now() - startTime;
+            // Fire and forget logging
+            logAIInteraction(
+                'openai',
+                this.model,
+                messages,
+                status === 'success' ? responseContent : errorMsg,
+                status,
+                duration
+            );
         }
     }
 
     async analyzeReference(reference: ReferenceImageInput): Promise<string> {
-        const defaultPrompt =
-            'Analyze this reference image and provide 3-5 concise bullet points covering: line style, color palette (or lack thereof), complexity, composition, and recurring elements to maintain or avoid.';
+        const analysisPrompt = await getSystemConfig('space_analysis_prompt', DEFAULT_ANALYSIS_PROMPT);
 
         const messages: ChatMessage[] = [
             {
                 role: 'system',
-                content: this.systemPrompts.analysis || defaultPrompt,
+                content: analysisPrompt,
             },
             {
                 role: 'user',
@@ -91,13 +122,12 @@ export class OpenAIConnector {
             .filter(Boolean)
             .join('\n');
 
-        const defaultPrompt =
-            'You are a prompt engineer. You receive descriptions and reference analyses to build a unique, concise, and complete Space Prompt. The prompt must be reusable, describing tone, composition, lines, allowed complexity, elements to avoid, palette, and output format. Return only the final prompt text.';
+        const generationPrompt = await getSystemConfig('space_generation_prompt', DEFAULT_GENERATION_PROMPT);
 
         const messages: ChatMessage[] = [
             {
                 role: 'system',
-                content: this.systemPrompts.generation || defaultPrompt,
+                content: generationPrompt,
             },
             {
                 role: 'user',
@@ -109,13 +139,12 @@ export class OpenAIConnector {
     }
 
     async standardizeRequest(spacePrompt: string, userRequest: string): Promise<string> {
-        const defaultPrompt =
-            'Take the following Space Prompt as a fixed style rule. Receive a user request and transform it into a standardized, clean, and consistent prompt that faithfully respects the Space. Include necessary corrections and adjustments to maintain composition, detail level, and established prohibitions.';
+        const standardizationPrompt = await getSystemConfig('space_standardization_prompt', DEFAULT_STANDARDIZATION_PROMPT);
 
         const messages: ChatMessage[] = [
             {
                 role: 'system',
-                content: this.systemPrompts.standardization || defaultPrompt,
+                content: standardizationPrompt,
             },
             {
                 role: 'user',
@@ -127,19 +156,12 @@ export class OpenAIConnector {
     }
 
     async synthesizeSpaceParams(name: string, analyses: string[]): Promise<{ objective: string; constraints: string; styleDefinition: string }> {
-        const prompt = `
-            Based on the following image analyses for a style named "${name}", synthesize the core parameters for a generative AI model.
-            
-            Analyses:
-            ${analyses.map((a, i) => `${i + 1}. ${a}`).join('\n')}
-            
-            Return a JSON object with exactly these keys:
-            - objective: A clear, positive description of what the style achieves (visual characteristics, mood).
-            - constraints: What should be avoided to maintain this style (negative constraints).
-            - styleDefinition: A concise, high-level definition of the style (e.g. "Vintage Comic Book", "Minimalist Line Art").
-            
-            Do not include markdown formatting, just the raw JSON string.
-        `;
+        const synthesisPromptTemplate = await getSystemConfig('space_synthesis_prompt', DEFAULT_SYNTHESIS_PROMPT);
+
+        // Simple template replacement
+        const prompt = synthesisPromptTemplate
+            .replace('{name}', name)
+            .replace('{analyses}', analyses.map((a, i) => `${i + 1}. ${a}`).join('\n'));
 
         const messages: ChatMessage[] = [
             {

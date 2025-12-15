@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Sparkles } from "lucide-react";
 
 interface SpaceImage {
     id: string;
@@ -146,6 +147,16 @@ export function SpaceCard({ space }: SpaceCardProps) {
                     </div>
                 )}
             </div>
+            <div className="flex gap-2">
+                <a
+                    href={`/spaces/${space.id}`}
+                    className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 text-center flex items-center justify-center gap-2"
+                >
+                    <Sparkles className="h-4 w-4" />
+                    Open Studio
+                </a>
+            </div>
         </div>
+
     );
 }
