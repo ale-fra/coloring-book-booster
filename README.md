@@ -20,6 +20,44 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Database Setup
+
+This project uses PostgreSQL with Drizzle ORM. Follow these steps to set up your database:
+
+### 1. Push Database Schema
+
+Push the schema to your database:
+
+```bash
+npm run db:push
+```
+
+This command uses Drizzle Kit to sync your database schema with the definitions in your code.
+
+### 2. Seed the Database
+
+Populate your database with initial data:
+
+```bash
+npm run db:seed
+```
+
+This runs the seed script located at `lib/db/seed.ts` to insert sample or required initial data.
+
+### 3. Verify Database Setup
+
+Verify that your database is correctly set up:
+
+```bash
+npm run db:verify
+```
+
+This runs the verification script at `scripts/verify-db.ts` to check that all tables and data are properly configured.
+
+### Additional Database Commands
+
+- **Create Database**: `npm run db:create` - Creates the database (runs `scripts/create-db.ts`)
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
