@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { GenerationService } from "@/lib/generation";
-import { getApiKey, getModels } from "@/app/actions";
+import { createTextConnector } from "@/lib/connectors/factory";
 import { getSystemConfig } from "@/lib/config";
 import { DEFAULT_SPACE_PROMPT_GENERATION_PROMPT } from "@/lib/prompts";
 import { auth } from "@/auth";
@@ -22,42 +21,30 @@ export async function POST(req: Request) {
             );
         }
 
-        const apiKey = await getApiKey();
-        if (!apiKey) {
-            return NextResponse.json(
-                { error: "Gemini API Key not configured." },
-                { status: 500 }
-            );
+        const connector = await createTextConnector();
+
+        // Determine which system prompt template to use based on target model
+        let systemPromptKey = 'space_system_prompt_gemini'; // Default
+        if (targetModel === 'flux') {
+            systemPromptKey = 'space_system_prompt_flux';
         }
 
-        // Find a suitable text model
-        const models = await getModels();
-        const textModel = models.find(m => m.type === 'text' && m.provider === 'gemini');
+        // Fetch the template
+        const systemPromptTemplate = await getSystemConfig(systemPromptKey, DEFAULT_SPACE_PROMPT_GENERATION_PROMPT);
 
-        if (!textModel) {
-            return NextResponse.json(
-                { error: "No Gemini text model configured." },
-                { status: 500 }
-            );
-        }
+        // Construct the specific system instruction
+        const systemPrompt = systemPromptTemplate
+            .replace('{targetModel}', targetModel === 'flux' ? 'Flux (Black Forest Labs)' : 'Google Gemini / Imagen')
+            .replace('{strategy}', targetModel === 'flux'
+                ? '- Use a comma-separated list of highly specific visual tags.\n- Focus on technical keywords (e.g. "vector lines", "flat color", "f/8").\n- Avoid conversational language.'
+                : '- Use natural, descriptive language.\n- Focus on the "feeling" and "composition" of the image.\n- Use complete sentences.')
+            .replace('{name}', name)
+            .replace('{objective}', objective)
+            .replace('{constraints}', constraints || '')
+            .replace('{styleDefinition}', styleDefinition || '');
 
-        // Instantiate GenerationService with the text model
-        // We pass dummy values for image-specific params since we are only doing text generation
-        const service = new GenerationService(
-            apiKey,
-            textModel.name,
-            textModel.tpm || 60,
-            textModel.temperature,
-            textModel.topP
-        );
-
-        const systemPromptTemplate = await getSystemConfig('space_prompt_generation_prompt', DEFAULT_SPACE_PROMPT_GENERATION_PROMPT);
-
-        const prompt = await service.generateSpacePrompt(
-            { name, objective, constraints, styleDefinition, targetModel },
-            textModel.name,
-            systemPromptTemplate
-        );
+        // Call the connector with the constructed system prompt
+        const prompt = await connector.chat(systemPrompt, "Generate the System Prompt based on the instructions.");
 
         return NextResponse.json({ prompt });
 

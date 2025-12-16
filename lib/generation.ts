@@ -6,6 +6,11 @@ import { logAIInteraction } from './ai-logger';
 import { GenerationResult } from './generation-types';
 import { RateLimiter } from "./rate-limiter";
 
+/**
+ * @deprecated Use `IImageGenerator` from `@/lib/connectors/interfaces` instead.
+ * Instantiate via `createImageGenerator` factory for new code.
+ * Existing client usage in `GenerationPage.tsx` prevents immediate removal.
+ */
 export class GenerationService {
     private client: GoogleGenAI;
     private replicateApiKey?: string;

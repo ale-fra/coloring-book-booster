@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db/drizzle';
 import { spaces } from '@/lib/db/schema';
-import { OpenAIConnector } from '@/lib/openai';
-import { resolveOpenAIApiKey } from '@/lib/server/keys';
+import { createTextConnector } from '@/lib/connectors/factory';
 import { eq } from 'drizzle-orm';
 import { auth } from '@/auth';
 
@@ -19,10 +18,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: 'User request and spaceId are required' }, { status: 400 });
     }
 
-    const apiKey = await resolveOpenAIApiKey();
-    if (!apiKey) {
-        return NextResponse.json({ error: 'OpenAI API Key not configured in server (.env) to use Spaces.' }, { status: 400 });
-    }
+
 
     const space = (await db.select().from(spaces).where(eq(spaces.id, id)))[0];
     if (!space) {
@@ -34,8 +30,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     // System prompts are now handled internally by the connector via system_configs
-    const connector = new OpenAIConnector(apiKey, 'gpt-4o-mini');
+    const connector = await createTextConnector();
     const prompt = await connector.standardizeRequest(space.prompt, userRequest);
 
-    return NextResponse.json({ prompt });
+    return NextResponse.json({ standardized: prompt });
 }

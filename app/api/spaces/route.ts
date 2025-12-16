@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db/drizzle';
 import { spaceImages, spaces } from '@/lib/db/schema';
-import { OpenAIConnector, ReferenceImageInput } from '@/lib/openai';
-import { resolveOpenAIApiKey } from '@/lib/server/keys';
+import { createVisionConnector } from '@/lib/connectors/factory';
+import { ReferenceImageInput } from '@/lib/connectors/interfaces';
 import { auth } from '@/auth';
 import { eq, desc } from 'drizzle-orm';
 
@@ -111,12 +111,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Name and objective are required' }, { status: 400 });
     }
 
-    const apiKey = await resolveOpenAIApiKey();
-    if (!apiKey) {
-        return NextResponse.json({ error: 'OpenAI API Key not configured.' }, { status: 500 });
-    }
-
-    const connector = new OpenAIConnector(apiKey, 'gpt-5-nano');
+    const connector = await createVisionConnector();
 
     const sanitizedReferences: ReferenceImageInput[] = Array.isArray(references)
         ? references.slice(0, 10).map((ref: ReferenceImageInput) => ({

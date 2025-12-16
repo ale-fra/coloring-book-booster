@@ -28,6 +28,10 @@ export interface SpacePromptRequest {
     imageAnalyses: string[];
 }
 
+/**
+ * @deprecated Use `ITextConnector` or `IVisionConnector` from `@/lib/connectors/interfaces` instead.
+ * Instantiate via `createTextConnector` or `createVisionConnector` factory.
+ */
 export class OpenAIConnector {
     private client: OpenAI;
     private model: string;
