@@ -80,9 +80,17 @@ export class GeminiTextConnector implements ITextConnector {
     async synthesizeSpaceParams(name: string, analyses: string[]): Promise<SynthesisResult> {
         const synthesisPromptTemplate = await getSystemConfig('space_synthesis_prompt', DEFAULT_SYNTHESIS_PROMPT);
 
-        const prompt = synthesisPromptTemplate
-            .replace('{name}', name)
-            .replace('{analyses}', analyses.map((a, i) => `${i + 1}. ${a}`).join('\n'));
+        let prompt = synthesisPromptTemplate.replace('{name}', name);
+
+        // If the template expects analyses via placeholder, replace it.
+        // Otherwise, append them to the end.
+        const analysesText = analyses.map((a, i) => `${i + 1}. ${a}`).join('\n');
+
+        if (prompt.includes('{analyses}')) {
+            prompt = prompt.replace('{analyses}', analysesText);
+        } else {
+            prompt += `\n\nREFERENCE ANALYSES:\n${analysesText}`;
+        }
 
         const response = await this.chat('You are an expert art director and prompt engineer. Output valid JSON only.', prompt);
 
@@ -121,12 +129,17 @@ export class GeminiTextConnector implements ITextConnector {
     }
 
     async standardizeRequest(spacePrompt: string, userRequest: string): Promise<string> {
-        const standardizationPrompt = await getSystemConfig('space_standardization_prompt', DEFAULT_STANDARDIZATION_PROMPT);
+        let standardizationPrompt = await getSystemConfig('space_standardization_prompt', DEFAULT_STANDARDIZATION_PROMPT);
 
-        const content = `SPACE PROMPT:\n${spacePrompt}\n\nUSER REQUEST:\n${userRequest}\n\nReturn only the final standardized prompt.`;
+        // Perform replacement
+        standardizationPrompt = standardizationPrompt
+            .replace('{spacePrompt}', spacePrompt)
+            .replace('{userPrompt}', userRequest);
 
+        // Send the fully formulated prompt as the user message (or system + user if we split it, 
+        // but the template combines them, so sending as single message is safest).
         return this.internalGenerate([
-            { role: 'user', parts: [{ text: content }] }
-        ], standardizationPrompt, 0.3);
+            { role: 'user', parts: [{ text: standardizationPrompt }] }
+        ], undefined, 0.3);
     }
 }

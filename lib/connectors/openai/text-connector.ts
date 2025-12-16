@@ -73,9 +73,15 @@ export class OpenAITextConnector implements ITextConnector {
     async synthesizeSpaceParams(name: string, analyses: string[]): Promise<SynthesisResult> {
         const synthesisPromptTemplate = await getSystemConfig('space_synthesis_prompt', DEFAULT_SYNTHESIS_PROMPT);
 
-        const prompt = synthesisPromptTemplate
-            .replace('{name}', name)
-            .replace('{analyses}', analyses.map((a, i) => `${i + 1}. ${a}`).join('\n'));
+        let prompt = synthesisPromptTemplate.replace('{name}', name);
+
+        const analysesText = analyses.map((a, i) => `${i + 1}. ${a}`).join('\n');
+
+        if (prompt.includes('{analyses}')) {
+            prompt = prompt.replace('{analyses}', analysesText);
+        } else {
+            prompt += `\n\nREFERENCE ANALYSES:\n${analysesText}`;
+        }
 
         const response = await this.chat('You are an expert art director and prompt engineer. Output valid JSON only.', prompt);
 
@@ -115,13 +121,14 @@ export class OpenAITextConnector implements ITextConnector {
     }
 
     async standardizeRequest(spacePrompt: string, userRequest: string): Promise<string> {
-        const standardizationPrompt = await getSystemConfig('space_standardization_prompt', DEFAULT_STANDARDIZATION_PROMPT);
+        let standardizationPrompt = await getSystemConfig('space_standardization_prompt', DEFAULT_STANDARDIZATION_PROMPT);
 
-        const content = `SPACE PROMPT:\n${spacePrompt}\n\nUSER REQUEST:\n${userRequest}\n\nReturn only the final standardized prompt.`;
+        standardizationPrompt = standardizationPrompt
+            .replace('{spacePrompt}', spacePrompt)
+            .replace('{userPrompt}', userRequest);
 
         return this.internalChat([
-            { role: 'system', content: standardizationPrompt },
-            { role: 'user', content }
+            { role: 'user', content: standardizationPrompt }
         ], 0.3);
     }
 }

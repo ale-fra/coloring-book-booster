@@ -4,6 +4,7 @@ import { generateImageWithReplicateAction } from "../app/actions";
 import logger from './logger';
 import { logAIInteraction } from './ai-logger';
 import { GenerationResult } from './generation-types';
+import { DEFAULT_SPACE_PROMPT_GENERATION_PROMPT } from './prompts';
 import { RateLimiter } from "./rate-limiter";
 
 /**
@@ -326,32 +327,47 @@ export class GenerationService {
         return results;
     }
 
+    // Define strategies for different models
+    private static STRATEGY_MAP: Record<string, string> = {
+        flux: "Use a token-based format. Front-load the prompt with the most important style keywords. Use format: '[Style Name], [Medium], [Visual Modifiers], [Lighting], [Composition]'.",
+        gemini: "Use a natural language structure. Start by defining the role: 'Generate images in the style of {name}...' Follow with a detailed paragraph describing the medium and technique as if instructing a human artist. Integrate constraints as negative instruction.",
+        // Default fallback
+        default: "Use a clear, descriptive natural language format focusing on medium and technique."
+    };
+
     async generateSpacePrompt(
         params: {
             name: string;
             objective: string;
             constraints: string;
             styleDefinition: string;
-            targetModel: 'gemini' | 'flux';
+            targetModel: string;
         },
-        textModelName: string,
-        systemPromptTemplate: string
+        textModelName: string
     ): Promise<string> {
         const startTime = Date.now();
         let status: 'success' | 'error' = 'success';
         let output = '';
 
         try {
+            // 1. Select the correct strategy
+            // Normalize targetModel to lower case for map lookup
+            const modelKey = params.targetModel.toLowerCase().includes('flux') ? 'flux' :
+                params.targetModel.toLowerCase().includes('gemini') ? 'gemini' : 'default';
 
-            const systemPrompt = systemPromptTemplate
-                .replace('{targetModel}', params.targetModel === 'flux' ? 'Flux (Black Forest Labs)' : 'Google Gemini / Imagen')
-                .replace('{strategy}', params.targetModel === 'flux'
-                    ? 'Use a token-based format. Front-load the prompt with the most important style keywords. Use format: [Style Name], [Medium], [Visual Modifiers], [Lighting], [Composition].'
-                    : "Use a natural language structure. Start by defining the role: 'Generate images in the style of {name}...' Follow with a detailed paragraph describing the medium and technique as if instructing a human artist. Integrate constraints as negative instruction.")
+            const strategy = GenerationService.STRATEGY_MAP[modelKey] || GenerationService.STRATEGY_MAP['default'];
+
+            // 2. Load the prompt template
+            let promptTemplate = DEFAULT_SPACE_PROMPT_GENERATION_PROMPT;
+
+            // 3. Inject all variables
+            const systemPrompt = promptTemplate
                 .replace('{name}', params.name)
                 .replace('{objective}', params.objective)
                 .replace('{constraints}', params.constraints)
-                .replace('{styleDefinition}', params.styleDefinition);
+                .replace('{styleDefinition}', params.styleDefinition)
+                .replace('{targetModel}', params.targetModel) // Keep original string for display/context if needed
+                .replace('{strategy}', strategy);
 
             const config: any = {
                 temperature: 0.4,
@@ -364,14 +380,7 @@ export class GenerationService {
                 }
             ];
 
-            // We need to use a text model for this, so we assume 'this.modelName' is a text model 
-            // OR we need to pass the text model name. The caller should ensure 'this.modelName' is correct 
-            // or we should instantiate a new client with the text model.
-            // Since GenerationService is usually instantiated with an image model for image generation,
-            // we should probably allow passing the model name or use the one passed in arguments.
-
-            // Actually, the caller of this method should instantiate GenerationService with the TEXT model.
-
+            // 4. Call LLM (Gemini)
             const response = await this.client.models.generateContentStream({
                 model: textModelName,
                 config: config as any,
