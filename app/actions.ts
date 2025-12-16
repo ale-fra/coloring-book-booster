@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db/drizzle';
-import { appModels, users, userSettings, userHistory, userPresets } from '@/lib/db/schema';
+import { appModels, users, userSettings, userHistory, userPresets, aiLogs } from '@/lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { ModelConfig, Preset, HistoryItem, GenerationResult } from '@/lib/db';
 import { getSystemConfig } from '@/lib/config';
@@ -21,6 +21,19 @@ export async function logAIInteraction(level: 'info' | 'error', message: string,
         console.error('Failed to write server log:', err);
     }
 }
+
+export async function clearAILogs() {
+    await requireAdmin();
+    try {
+        await db.delete(aiLogs);
+        revalidatePath('/api/admin/ai-logs'); // invalidate the API route cache if applicable, though SWR handles client side
+        return { status: 'success', message: 'Logs cleared successfully' };
+    } catch (error) {
+        console.error('Failed to clear logs:', error);
+        return { status: 'error', message: 'Failed to clear logs' };
+    }
+}
+
 
 import { auth, signIn, signOut } from '@/auth';
 import { AuthError } from 'next-auth';

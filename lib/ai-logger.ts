@@ -4,6 +4,8 @@ import { db } from '@/lib/db/drizzle';
 import { aiLogs } from '@/lib/db/schema';
 import { auth } from '@/auth';
 
+import { sanitizeForLog } from '@/lib/utils';
+
 export async function logAIInteraction(
     provider: string,
     model: string,
@@ -26,11 +28,14 @@ export async function logAIInteraction(
             }
         }
 
+        const sanitizedInput = sanitizeForLog(input);
+        const sanitizedOutput = sanitizeForLog(output);
+
         await db.insert(aiLogs).values({
             provider,
             model,
-            input: typeof input === 'string' ? input : JSON.stringify(input),
-            output: typeof output === 'string' ? output : JSON.stringify(output),
+            input: typeof sanitizedInput === 'string' ? sanitizedInput : JSON.stringify(sanitizedInput),
+            output: typeof sanitizedOutput === 'string' ? sanitizedOutput : JSON.stringify(sanitizedOutput),
             status,
             durationMs,
             userId: finalUserId,

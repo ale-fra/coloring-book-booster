@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Activity, X, ChevronRight, ChevronDown, RefreshCw, Database, Maximize2 } from "lucide-react";
+import { Activity, X, ChevronRight, ChevronDown, RefreshCw, Database, Maximize2, Trash2, Copy, Check } from "lucide-react";
+import { clearAILogs } from "@/app/actions";
 import useSWR from "swr";
 
 interface AILog {
@@ -49,6 +50,21 @@ export function AdminDebugPanel({ isPopup = false }: { isPopup?: boolean }) {
         setIsOpen(false);
     };
 
+    const handleClearLogs = async () => {
+        if (confirm('Are you sure you want to clear all AI logs?')) {
+            await clearAILogs();
+            mutate();
+        }
+    };
+
+    const [copiedId, setCopiedId] = useState<string | null>(null);
+
+    const copyToClipboard = (text: string, id: string) => {
+        navigator.clipboard.writeText(text);
+        setCopiedId(id);
+        setTimeout(() => setCopiedId(null), 2000);
+    };
+
     if (!isOpen && !isPopup) {
         return (
             <button
@@ -82,6 +98,13 @@ export function AdminDebugPanel({ isPopup = false }: { isPopup?: boolean }) {
                         title="Refresh"
                     >
                         <RefreshCw className="h-4 w-4" />
+                    </button>
+                    <button
+                        onClick={handleClearLogs}
+                        className="p-1 hover:bg-muted rounded-md text-muted-foreground hover:text-destructive"
+                        title="Clear All Logs"
+                    >
+                        <Trash2 className="h-4 w-4" />
                     </button>
                     {!isPopup && (
                         <>
@@ -141,14 +164,38 @@ export function AdminDebugPanel({ isPopup = false }: { isPopup?: boolean }) {
 
                             {selectedLog === log.id && (
                                 <div className="p-3 border-t border-border bg-muted/10 space-y-3">
-                                    <div>
-                                        <p className="text-xs font-semibold mb-1 text-muted-foreground">Input</p>
+                                    <div className="relative group">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <p className="text-xs font-semibold text-muted-foreground">Input</p>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    copyToClipboard(tryFormatJson(log.input), `input-${log.id}`);
+                                                }}
+                                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-background rounded text-muted-foreground"
+                                                title="Copy Input"
+                                            >
+                                                {copiedId === `input-${log.id}` ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                                            </button>
+                                        </div>
                                         <pre className="text-xs bg-muted p-2 rounded overflow-x-auto max-h-40 whitespace-pre-wrap">
                                             {tryFormatJson(log.input)}
                                         </pre>
                                     </div>
-                                    <div>
-                                        <p className="text-xs font-semibold mb-1 text-muted-foreground">Output</p>
+                                    <div className="relative group">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <p className="text-xs font-semibold text-muted-foreground">Output</p>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    copyToClipboard(tryFormatJson(log.output), `output-${log.id}`);
+                                                }}
+                                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-background rounded text-muted-foreground"
+                                                title="Copy Output"
+                                            >
+                                                {copiedId === `output-${log.id}` ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                                            </button>
+                                        </div>
                                         <pre className="text-xs bg-muted p-2 rounded overflow-x-auto max-h-60 whitespace-pre-wrap">
                                             {tryFormatJson(log.output)}
                                         </pre>
