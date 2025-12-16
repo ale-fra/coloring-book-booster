@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Loader2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2, X, Pencil, Code, Sparkles } from "lucide-react";
 import { mutate } from "swr";
 import { ImageUploader } from "../ImageUploader";
+import { GuidedCreationChat } from "./GuidedCreationChat";
 
 interface CreateSpaceWizardProps {
     onCancel: () => void;
@@ -11,13 +12,14 @@ interface CreateSpaceWizardProps {
 }
 
 export function CreateSpaceWizard({ onCancel, onSuccess }: CreateSpaceWizardProps) {
-    const [step, setStep] = useState(1);
+    const [step, setStep] = useState(0);
     const [form, setForm] = useState({
         name: "",
         objective: "",
         constraints: "",
         styleDefinition: "",
     });
+    const [analysisContext, setAnalysisContext] = useState<{ mood?: string; subject?: string; goal?: string }>({});
     const [references, setReferences] = useState<{ dataUrl: string; mimeType: string; name: string }[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -26,6 +28,7 @@ export function CreateSpaceWizard({ onCancel, onSuccess }: CreateSpaceWizardProp
     const [targetModel, setTargetModel] = useState<'gemini' | 'flux'>('gemini');
     const [generatedPrompt, setGeneratedPrompt] = useState("");
     const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
+    const [debugMode, setDebugMode] = useState(false);
 
     const handleAnalyze = async () => {
         if (!form.name || references.length === 0) {
@@ -41,7 +44,7 @@ export function CreateSpaceWizard({ onCancel, onSuccess }: CreateSpaceWizardProp
             const response = await fetch("/api/spaces/analyze", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: form.name, references }),
+                body: JSON.stringify({ name: form.name, references, context: analysisContext }),
             });
 
             const data = await response.json();
@@ -124,24 +127,116 @@ export function CreateSpaceWizard({ onCancel, onSuccess }: CreateSpaceWizardProp
         <div className="bg-card border border-border rounded-xl p-10 w-full mx-auto space-y-8 min-h-[80vh]">
             <div className="flex items-center justify-between">
                 <h2 className="text-3xl font-semibold">Create Your Space Style</h2>
-                <button onClick={onCancel} className="text-muted-foreground hover:text-foreground">
-                    <X className="h-6 w-6" />
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setDebugMode(!debugMode)}
+                        className={`p-2 rounded-md transition-colors ${debugMode ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                        title="Toggle Debug Mode"
+                    >
+                        <Code size={20} />
+                    </button>
+                    <button onClick={onCancel} className="text-muted-foreground hover:text-foreground">
+                        <X className="h-6 w-6" />
+                    </button>
+                </div>
             </div>
 
             {/* Progress Steps */}
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span className={step >= 1 ? "text-primary font-medium" : ""}>1. Setup</span>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground overflow-x-auto">
+                <span className={step >= 0 ? "text-primary font-medium whitespace-nowrap" : "whitespace-nowrap"}>1. Vibe Check</span>
                 <ArrowRight className="h-4 w-4" />
-                <span className={step >= 2 ? "text-primary font-medium" : ""}>2. Analysis</span>
+                <span className={step >= 1 ? "text-primary font-medium whitespace-nowrap" : "whitespace-nowrap"}>2. Setup</span>
                 <ArrowRight className="h-4 w-4" />
-                <span className={step >= 3 ? "text-primary font-medium" : ""}>3. Review</span>
+                <span className={step >= 2 ? "text-primary font-medium whitespace-nowrap" : "whitespace-nowrap"}>3. Analysis</span>
                 <ArrowRight className="h-4 w-4" />
-                <span className={step >= 4 ? "text-primary font-medium" : ""}>4. Prompt</span>
+                <span className={step >= 3 ? "text-primary font-medium whitespace-nowrap" : "whitespace-nowrap"}>4. Review</span>
+                <ArrowRight className="h-4 w-4" />
+                <span className={step >= 4 ? "text-primary font-medium whitespace-nowrap" : "whitespace-nowrap"}>5. Prompt</span>
             </div>
+
+            {step === 0 && (
+                <div className="space-y-6">
+                    <div className="text-center space-y-2">
+                        <h3 className="text-lg font-medium">Let's start with a Vibe Check</h3>
+                        <p className="text-sm text-muted-foreground">Tell our AI Director what you want to create (e.g. "Spooky coloring pages", "Clean icons").</p>
+                    </div>
+                    <GuidedCreationChat
+                        onComplete={(ctx) => {
+                            setAnalysisContext(ctx);
+                            // Auto-fill name if subject provided and name empty? 
+                            if (ctx.subject && !form.name) {
+                                setForm(prev => ({ ...prev, name: ctx.subject + " Style" }));
+                            }
+                            setStep(1);
+                        }}
+                    />
+                    <div className="flex justify-between">
+                        <div className="text-xs text-muted-foreground">
+                            * The AI will ask a few questions to understand your goal.
+                        </div>
+                        <button
+                            onClick={() => setStep(1)}
+                            className="text-muted-foreground hover:text-foreground text-sm flex items-center gap-1"
+                        >
+                            Skip to upload <ArrowRight className="h-3 w-3" />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {step === 1 && (
                 <div className="space-y-6">
+                    {/* Mirroring Handshake / Summary */}
+                    {(analysisContext.mood || analysisContext.subject) && (
+                        <div className="bg-secondary/20 border border-border rounded-lg p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-medium flex items-center gap-2">
+                                    <Sparkles size={14} className="text-primary" />
+                                    Vibe Check Summary
+                                </h4>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="text-xs text-muted-foreground mb-1 block">Mood</label>
+                                    <input
+                                        value={analysisContext.mood || ''}
+                                        readOnly
+                                        className="w-full bg-background/50 border border-border rounded px-2 py-1 text-sm text-muted-foreground cursor-default focus:ring-0"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-muted-foreground mb-1 block">Subject</label>
+                                    <input
+                                        value={analysisContext.subject || ''}
+                                        readOnly
+                                        className="w-full bg-background/50 border border-border rounded px-2 py-1 text-sm text-muted-foreground cursor-default focus:ring-0"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-muted-foreground mb-1 block">Goal</label>
+                                    <input
+                                        value={analysisContext.goal || ''}
+                                        readOnly
+                                        className="w-full bg-background/50 border border-border rounded px-2 py-1 text-sm text-muted-foreground cursor-default focus:ring-0"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Debug View */}
+                    {debugMode && (
+                        <div className="bg-slate-950 text-slate-50 p-4 rounded-lg font-mono text-xs overflow-auto max-h-40">
+                            <h5 className="mb-2 text-slate-400 font-bold">DEBUG: Analysis Payload</h5>
+                            <pre>{JSON.stringify({
+                                name: form.name,
+                                context: analysisContext,
+                                referencesCount: references.length
+                            }, null, 2)}</pre>
+                        </div>
+                    )}
+
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Style Name</label>
                         <input
@@ -164,7 +259,15 @@ export function CreateSpaceWizard({ onCancel, onSuccess }: CreateSpaceWizardProp
 
                     {error && <p className="text-sm text-destructive">{error}</p>}
 
-                    <div className="flex justify-end">
+                    {error && <p className="text-sm text-destructive">{error}</p>}
+
+                    <div className="flex justify-between">
+                        <button
+                            onClick={() => setStep(0)}
+                            className="text-muted-foreground hover:text-foreground flex items-center gap-2"
+                        >
+                            <ArrowLeft className="h-4 w-4" /> Vibe Check
+                        </button>
                         <button
                             onClick={handleAnalyze}
                             disabled={!form.name || references.length === 0}

@@ -1,4 +1,4 @@
-import { IVisionConnector, ReferenceImageInput } from '../interfaces';
+import { IVisionConnector, ReferenceImageInput, AnalysisContext } from '../interfaces';
 import { OpenAITextConnector } from './text-connector';
 import { getSystemConfig } from '../../config';
 import { DEFAULT_ANALYSIS_PROMPT } from '../../prompts';
@@ -9,8 +9,19 @@ export class OpenAIVisionConnector extends OpenAITextConnector implements IVisio
         super(apiKey, model);
     }
 
-    async analyzeReference(reference: ReferenceImageInput): Promise<string> {
-        const analysisPrompt = await getSystemConfig('space_analysis_prompt', DEFAULT_ANALYSIS_PROMPT);
+    async analyzeReference(reference: ReferenceImageInput, context?: AnalysisContext): Promise<string> {
+        let analysisPrompt = await getSystemConfig('space_analysis_prompt', DEFAULT_ANALYSIS_PROMPT);
+
+        // Inject Context if available
+        if (context) {
+            const contextStr = `\n\nCONTEXT PRIORS (User Provided):\n` +
+                (context.mood ? `- Mood/Vibe: ${context.mood}\n` : '') +
+                (context.subject ? `- Subject/Topic: ${context.subject}\n` : '') +
+                (context.goal ? `- Creative Goal: ${context.goal}\n` : '') +
+                `\nINSTRUCTION: Allow these priors to focus your analysis. If the user says "clean", ignore accidental messiness. If they say "sketchy", look for that.`;
+
+            analysisPrompt += contextStr;
+        }
 
         return this.internalChat([
             {

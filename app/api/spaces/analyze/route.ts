@@ -11,7 +11,7 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const { name, references } = body;
+        const { name, references, context } = body;
 
         if (!name || !references || !Array.isArray(references) || references.length === 0) {
             return NextResponse.json(
@@ -25,11 +25,11 @@ export async function POST(req: Request) {
         const refs = references as ReferenceImageInput[];
         const analyses = await Promise.all(
             refs.slice(0, 3).map(async (ref) => {
-                return connector.analyzeReference(ref);
+                return connector.analyzeReference(ref, context);
             })
         );
 
-        const synthesis = await connector.synthesizeSpaceParams(name, analyses);
+        const synthesis = await connector.synthesizeSpaceParams(name, analyses, context);
 
         return NextResponse.json(synthesis);
 

@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { ITextConnector, SpacePromptRequest, SynthesisResult } from '../interfaces';
+import { ITextConnector, SpacePromptRequest, SynthesisResult, AnalysisContext } from '../interfaces';
 import { logAIInteraction } from '../../ai-logger';
 import { getSystemConfig } from '../../config';
 import {
@@ -70,10 +70,21 @@ export class OpenAITextConnector implements ITextConnector {
         }
     }
 
-    async synthesizeSpaceParams(name: string, analyses: string[]): Promise<SynthesisResult> {
+    async synthesizeSpaceParams(name: string, analyses: string[], context?: AnalysisContext): Promise<SynthesisResult> {
         const synthesisPromptTemplate = await getSystemConfig('space_synthesis_prompt', DEFAULT_SYNTHESIS_PROMPT);
 
         let prompt = synthesisPromptTemplate.replace('{name}', name);
+
+        // Inject Context if available - This is minimal context
+        if (context) {
+            const contextStr = `\n\nCONTEXT PRIORS (User Provided):\n` +
+                (context.mood ? `- Mood/Vibe: ${context.mood}\n` : '') +
+                (context.subject ? `- Subject/Topic: ${context.subject}\n` : '') +
+                (context.goal ? `- Creative Goal: ${context.goal}\n` : '') +
+                `\nINSTRUCTION: Ensure the synthesized Objective and Constraints explicitly serve the mood and goal above.`;
+
+            prompt += contextStr;
+        }
 
         const analysesText = analyses.map((a, i) => `${i + 1}. ${a}`).join('\n');
 

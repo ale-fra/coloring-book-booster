@@ -15,6 +15,12 @@ export interface SpacePromptRequest {
     imageAnalyses: string[];
 }
 
+export interface AnalysisContext {
+    mood?: string;
+    subject?: string;
+    goal?: string;
+}
+
 export interface SynthesisResult {
     objective: string;
     constraints: string;
@@ -33,7 +39,7 @@ export interface ITextConnector {
     /**
      * Synthesize space parameters from analyses
      */
-    synthesizeSpaceParams(name: string, analyses: string[]): Promise<SynthesisResult>;
+    synthesizeSpaceParams(name: string, analyses: string[], context?: AnalysisContext): Promise<SynthesisResult>;
 
     /**
      * Build a reusable space prompt
@@ -53,7 +59,7 @@ export interface IVisionConnector extends ITextConnector {
     /**
      * Analyze a reference image
      */
-    analyzeReference(reference: ReferenceImageInput): Promise<string>;
+    analyzeReference(reference: ReferenceImageInput, context?: AnalysisContext): Promise<string>;
 }
 
 /**

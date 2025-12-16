@@ -4,6 +4,7 @@ import { generateImageWithReplicateAction } from "../app/actions";
 import logger from './logger';
 import { logAIInteraction } from './ai-logger';
 import { GenerationResult } from './generation-types';
+export type { GenerationResult };
 import { DEFAULT_SPACE_PROMPT_GENERATION_PROMPT } from './prompts';
 import { RateLimiter } from "./rate-limiter";
 
