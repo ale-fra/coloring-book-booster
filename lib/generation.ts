@@ -346,8 +346,8 @@ export class GenerationService {
             const systemPrompt = systemPromptTemplate
                 .replace('{targetModel}', params.targetModel === 'flux' ? 'Flux (Black Forest Labs)' : 'Google Gemini / Imagen')
                 .replace('{strategy}', params.targetModel === 'flux'
-                    ? '- Use a comma-separated list of highly specific visual tags.\n- Focus on technical keywords (e.g. "vector lines", "flat color", "f/8").\n- Avoid conversational language.'
-                    : '- Use natural, descriptive language.\n- Focus on the "feeling" and "composition" of the image.\n- Use complete sentences.')
+                    ? 'Use a token-based format. Front-load the prompt with the most important style keywords. Use format: [Style Name], [Medium], [Visual Modifiers], [Lighting], [Composition].'
+                    : "Use a natural language structure. Start by defining the role: 'Generate images in the style of {name}...' Follow with a detailed paragraph describing the medium and technique as if instructing a human artist. Integrate constraints as negative instruction.")
                 .replace('{name}', params.name)
                 .replace('{objective}', params.objective)
                 .replace('{constraints}', params.constraints)

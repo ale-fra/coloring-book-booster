@@ -145,14 +145,18 @@ export class OpenAIConnector {
     async standardizeRequest(spacePrompt: string, userRequest: string): Promise<string> {
         const standardizationPrompt = await getSystemConfig('space_standardization_prompt', DEFAULT_STANDARDIZATION_PROMPT);
 
+        const filledPrompt = standardizationPrompt
+            .replace('{spacePrompt}', spacePrompt)
+            .replace('{userPrompt}', userRequest);
+
         const messages: ChatMessage[] = [
             {
                 role: 'system',
-                content: standardizationPrompt,
+                content: filledPrompt,
             },
             {
                 role: 'user',
-                content: `SPACE PROMPT:\n${spacePrompt}\n\nUSER REQUEST:\n${userRequest}\n\nReturn only the final standardized prompt.`,
+                content: 'Begin standardization.',
             },
         ];
 
