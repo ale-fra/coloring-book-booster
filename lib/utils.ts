@@ -10,10 +10,11 @@ export function sanitizeForLog(data: any): any {
 
   // Handle strings
   if (typeof data === 'string') {
-    // Truncate data URIs or very long strings
-    if (data.startsWith('data:image') || data.length > 500) {
-      return data.substring(0, 20) + '...[truncated]';
+    // Truncate data URIs
+    if (data.startsWith('data:image')) {
+      return data.substring(0, 30) + '...[truncated data-uri]';
     }
+    // No longer truncating generic long strings to preserve prompts
     return data;
   }
 
@@ -27,10 +28,19 @@ export function sanitizeForLog(data: any): any {
     const sanitized: any = {};
     for (const key in data) {
       // Check for specific keys that might contain large data
-      if (['imageUrl', 'image', 'base64'].includes(key)) {
+      if (['imageUrl', 'image', 'base64', 'src', 'url'].includes(key)) {
         const val = data[key];
-        if (typeof val === 'string' && val.length > 50) {
-          sanitized[key] = val.substring(0, 20) + '...[truncated]';
+        if (typeof val === 'string') {
+          // Strong check for data URI
+          if (val.startsWith('data:image')) {
+            sanitized[key] = val.substring(0, 30) + '...[truncated data-uri]';
+          } else if (val.length > 1000) {
+            // Only truncate if it's absurdly long (likely base64 without prefix or very long token)
+            // But keep it reasonably long to allow for signed URLs etc.
+            sanitized[key] = val.substring(0, 30) + '...[truncated length]';
+          } else {
+            sanitized[key] = val;
+          }
         } else {
           sanitized[key] = sanitizeForLog(val);
         }
