@@ -3,6 +3,7 @@ import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env' });
 import { db } from './drizzle';
 import { systemConfigs } from './schema';
+import { eq } from 'drizzle-orm';
 import { DEFAULT_ANALYSIS_PROMPT, DEFAULT_SYNTHESIS_PROMPT, DEFAULT_GENERATION_PROMPT, DEFAULT_STANDARDIZATION_PROMPT, DEFAULT_SPACE_PROMPT_GENERATION_PROMPT } from '../prompts';
 
 const newConfigs = [
@@ -33,6 +34,14 @@ async function seedAiConfig() {
             });
             console.log(`Upserted config: ${config.key}`);
         }
+
+        // Cleanup old keys
+        const keysToDelete = ['space_prompt_generation_prompt'];
+        for (const key of keysToDelete) {
+            await db.delete(systemConfigs).where(eq(systemConfigs.key, key));
+            console.log(`Deleted legacy config: ${key}`);
+        }
+
         console.log('AI configuration seeding completed.');
     } catch (error) {
         console.error('Error seeding AI configurations:', error);
