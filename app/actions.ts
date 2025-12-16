@@ -1,9 +1,10 @@
 'use server';
 
 import { db } from '@/lib/db/drizzle';
-import { appModels, appSettings, users, userSettings, userHistory, userPresets } from '@/lib/db/schema';
+import { appModels, users, userSettings, userHistory, userPresets, aiLogs } from '@/lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { ModelConfig, Preset, HistoryItem, GenerationResult } from '@/lib/db';
+import { getSystemConfig } from '@/lib/config';
 import { revalidatePath } from 'next/cache';
 import Replicate from "replicate";
 import serverLogger from '@/lib/server-logger';
@@ -21,9 +22,32 @@ export async function logAIInteraction(level: 'info' | 'error', message: string,
     }
 }
 
+export async function clearAILogs() {
+    await requireAdmin();
+    try {
+        await db.delete(aiLogs);
+        revalidatePath('/api/admin/ai-logs'); // invalidate the API route cache if applicable, though SWR handles client side
+        return { status: 'success', message: 'Logs cleared successfully' };
+    } catch (error) {
+        console.error('Failed to clear logs:', error);
+        return { status: 'error', message: 'Failed to clear logs' };
+    }
+}
+
+
 import { auth, signIn, signOut } from '@/auth';
 import { AuthError } from 'next-auth';
 import bcrypt from 'bcryptjs';
+
+import { redirect } from 'next/navigation';
+
+function isRedirectError(error: any) {
+    return (
+        error &&
+        typeof error === 'object' &&
+        (error.digest?.startsWith('NEXT_REDIRECT') || error.message === 'NEXT_REDIRECT')
+    );
+}
 
 // Helper to get current user
 async function getCurrentUser() {
@@ -31,7 +55,7 @@ async function getCurrentUser() {
     const sessionUser = session?.user as { id?: string; email?: string } | undefined;
 
     if (!sessionUser) {
-        throw new Error('Not authenticated');
+        redirect('/login');
     }
 
     const user = sessionUser.id
@@ -93,7 +117,10 @@ export async function registerUser(prevState: string | undefined, formData: Form
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const defaultCredits = (await db.query.appSettings.findFirst())?.defaultCredits || 250;
+
+    // Get default credits from system config
+    const defaultCreditsStr = await getSystemConfig('default_credits', '250');
+    const defaultCredits = parseInt(defaultCreditsStr, 10);
 
     const [newUser] = await db.insert(users).values({
         email,
@@ -164,6 +191,7 @@ export async function updateEmailAddress(prevState: AccountActionState, formData
         revalidatePath('/user');
         return { status: 'success', message: 'Email updated. You may need to sign in again for changes to show everywhere.' };
     } catch (error) {
+        if (isRedirectError(error)) throw error;
         console.error('Failed to update email:', error);
         return { status: 'error', message: 'Could not update email right now. Please try again.' };
     }
@@ -209,6 +237,7 @@ export async function changePassword(prevState: AccountActionState, formData: Fo
         revalidatePath('/user');
         return { status: 'success', message: 'Password updated successfully.' };
     } catch (error) {
+        if (isRedirectError(error)) throw error;
         console.error('Failed to change password:', error);
         return { status: 'error', message: 'Could not change password right now. Please try again.' };
     }

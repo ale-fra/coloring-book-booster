@@ -2,17 +2,17 @@ import { GoogleGenAI } from "@google/genai";
 import mime from "mime";
 import { generateImageWithReplicateAction } from "../app/actions";
 import logger from './logger';
+import { logAIInteraction } from './ai-logger';
+import { GenerationResult } from './generation-types';
+export type { GenerationResult };
+import { DEFAULT_SPACE_PROMPT_GENERATION_PROMPT } from './prompts';
 import { RateLimiter } from "./rate-limiter";
 
-export interface GenerationResult {
-    prompt: string;
-    imageUrl?: string; // Base64 data URI
-    error?: string;
-    isLoading?: boolean;
-    variants?: { imageUrl: string, prompt: string }[];
-    selectedVariantIndex?: number;
-}
-
+/**
+ * @deprecated Use `IImageGenerator` from `@/lib/connectors/interfaces` instead.
+ * Instantiate via `createImageGenerator` factory for new code.
+ * Existing client usage in `GenerationPage.tsx` prevents immediate removal.
+ */
 export class GenerationService {
     private client: GoogleGenAI;
     private replicateApiKey?: string;
@@ -48,6 +48,11 @@ export class GenerationService {
             return this.generateWithReplicate(prompt);
         }
 
+        const startTime = Date.now();
+        let status: 'success' | 'error' = 'success';
+        let output: any = {};
+        let finalError = '';
+
         const maxRetries = 3;
         let attempt = 0;
 
@@ -62,9 +67,6 @@ export class GenerationService {
 
                 if (this.aspectRatio) {
                     if (this.aspectRatio === 'custom' && this.width && this.height) {
-                        // For Gemini, we might need to format it as "W:H" if supported, or just pass it if the SDK supports it.
-                        // Currently Gemini API mainly uses standard aspect ratios. 
-                        // We'll try to pass it as aspect_ratio string "W:H" which might work for some models.
                         config.aspectRatio = `${this.width}:${this.height}`;
                     } else {
                         config.aspectRatio = this.aspectRatio;
@@ -82,7 +84,7 @@ export class GenerationService {
 
                 const response = await this.client.models.generateContentStream({
                     model: this.modelName,
-                    config: config as any, // Type definition might be slightly off in beta
+                    config: config as any,
                     contents,
                 });
 
@@ -99,21 +101,24 @@ export class GenerationService {
                         const mimeType = part.inlineData.mimeType || "image/png";
                         const data = part.inlineData.data;
                         imageUrl = `data:${mimeType};base64,${data}`;
-                        break; // Assuming one image per request for now
+                        break;
                     }
                 }
 
                 if (imageUrl) {
                     logger.info('Gemini generation success', { prompt, imageGenerated: true });
+                    output = { imageUrl: '...base64 data...' };
+                    logAIInteraction('gemini', this.modelName, { prompt, config }, output, 'success', Date.now() - startTime);
                     return { prompt, imageUrl };
                 } else {
                     logger.error('Gemini generation error', { error: "No image data received from Gemini.", prompt });
-                    return { prompt, error: "No image data received from Gemini." };
+                    finalError = "No image data received from Gemini.";
                 }
 
             } catch (error: any) {
                 logger.error('Gemini generation exception', { error: error.message, prompt, attempt: attempt + 1 });
                 console.error(`Generation Error (Attempt ${attempt + 1}/${maxRetries}):`, error);
+                finalError = error.message;
 
                 const errorMessage = error.message || "";
                 if (errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
@@ -124,38 +129,29 @@ export class GenerationService {
                         continue;
                     }
                 }
-
-                return { prompt, error: error.message || "Unknown error" };
             }
+            attempt++;
         }
 
-        return { prompt, error: "Max retries exceeded for generation." };
+        logAIInteraction('gemini', this.modelName, { prompt }, { error: finalError }, 'error', Date.now() - startTime);
+        return { prompt, error: finalError || "Max retries exceeded for generation." };
     }
 
-    private async generateWithReplicate(prompt: string): Promise<GenerationResult> {
-        // We need the API key to be passed to the server action
-        // Since we don't store it in the class anymore (as it was for the client), 
-        // we might need to pass it or rely on the server action to pick it up if it's an env var.
-        // However, the constructor still accepts replicateApiKey.
-        // Let's store it in a private property if needed, or better, just use the one passed to constructor if we saved it.
-        // Wait, I removed the property. I should keep the property but as a string, not a Replicate instance.
-
-        // Actually, let's look at how I modified the constructor. I removed the initialization of this.replicate.
-        // I should probably store the key.
-
-        // For now, let's implement this method assuming I have access to the key. 
-        // I will add the property back in a moment.
-
-        if (!this.replicateApiKey) {
-            logger.error('Replicate generation failed: Missing API Key');
-            return { prompt, error: "Replicate API key not configured." };
-        }
+    async generateWithReplicate(prompt: string): Promise<GenerationResult> {
+        const startTime = Date.now();
+        let status: 'success' | 'error' = 'success';
+        let output: any = {};
 
         try {
+            if (!this.replicateApiKey) {
+                status = 'error';
+                output = { error: "Replicate API key not configured." };
+                logger.error('Replicate generation failed: Missing API Key');
+                return { prompt, error: "Replicate API key not configured." };
+            }
+
             await this.rateLimiter.acquire();
 
-            // Create input object, excluding aspect_ratio from config if it's an array (options)
-            // or if we have a specific aspectRatio set.
             const { aspect_ratio, ...restConfig } = this.config || {};
 
             const input: any = {
@@ -163,30 +159,20 @@ export class GenerationService {
                 ...restConfig,
             };
 
-            // Apply selected aspect ratio
             if (this.aspectRatio) {
                 if (this.aspectRatio === 'custom' && this.width && this.height) {
                     input.width = this.width;
                     input.height = this.height;
-                    input.aspect_ratio = "custom"; // Flux might expect this explicitly or just omit it?
-                    // The error said "Expected: string". 
-                    // Some models like Flux might fail if aspect_ratio is present AND width/height are present if aspect_ratio is not "custom".
-                    // But usually if width/height are there, aspect_ratio might be ignored or should be "custom".
-                    // Let's set it to "custom" to be safe if the model supports it, or remove it if not.
-                    // Replicate Flux documentation says: aspect_ratio: "1:1", "16:9", etc. OR custom.
-                    // If custom, width and height are used.
+                    input.aspect_ratio = "custom";
                 } else {
                     input.aspect_ratio = this.aspectRatio;
-                    // Remove width/height if not custom, to avoid conflicts
                     delete input.width;
                     delete input.height;
                 }
             } else if (aspect_ratio && !Array.isArray(aspect_ratio)) {
-                // Fallback to config's aspect_ratio ONLY if it's a string (default value), not an array of options
                 input.aspect_ratio = aspect_ratio;
             }
 
-            // Ensure output format is set if not in config
             if (!input.output_format) {
                 input.output_format = "jpg";
             }
@@ -195,8 +181,10 @@ export class GenerationService {
             }
 
             const result = await generateImageWithReplicateAction(this.replicateApiKey, this.modelName, input);
+            output = result;
 
             if (result.error) {
+                status = 'error';
                 logger.error('Replicate generation error', { error: result.error, prompt });
                 return { prompt, error: result.error };
             }
@@ -205,14 +193,28 @@ export class GenerationService {
                 logger.info('Replicate generation success', { prompt, imageGenerated: true });
                 return { prompt, imageUrl: result.imageUrl };
             } else {
+                status = 'error';
+                output = { error: "No image URL received from Replicate" };
                 logger.error('Replicate generation failed: No URL', { prompt });
                 return { prompt, error: "No image URL received from Replicate" };
             }
 
         } catch (error: any) {
+            status = 'error';
+            output = { error: error.message };
             logger.error('Replicate generation exception', { error: error.message, prompt });
             console.error("Replicate Generation Error:", error);
             return { prompt, error: error.message || "Unknown Replicate error" };
+        } finally {
+            const duration = Date.now() - startTime;
+            logAIInteraction(
+                'replicate',
+                this.modelName,
+                { prompt, config: this.config },
+                output,
+                status,
+                duration
+            );
         }
     }
 
@@ -224,6 +226,10 @@ export class GenerationService {
         thinkingEnabled: boolean = false,
         searchEnabled: boolean = false
     ): Promise<string> {
+        const startTime = Date.now();
+        let status: 'success' | 'error' = 'success';
+        let output = '';
+
         logger.info('Enhancing prompt request', {
             userInput,
             model: textModelName,
@@ -285,12 +291,25 @@ export class GenerationService {
             }
 
             const finalEnhancedPrompt = enhancedPrompt.trim();
+            output = finalEnhancedPrompt;
             logger.info('Prompt enhancement success', { original: userInput, enhanced: finalEnhancedPrompt });
             return finalEnhancedPrompt;
         } catch (error: any) {
+            status = 'error';
+            output = error.message;
             logger.error('Prompt enhancement error', { error: error.message, userInput });
             console.error('Enhancement Error:', error);
             return userInput; // Return original on error
+        } finally {
+            const duration = Date.now() - startTime;
+            logAIInteraction(
+                'gemini-text',
+                textModelName,
+                { userInput, systemPrompt },
+                output,
+                status,
+                duration
+            );
         }
     }
 
@@ -307,5 +326,98 @@ export class GenerationService {
         }
 
         return results;
+    }
+
+    // Define strategies for different models
+    private static STRATEGY_MAP: Record<string, string> = {
+        flux: "Use a token-based format. Front-load the prompt with the most important style keywords. Use format: '[Style Name], [Medium], [Visual Modifiers], [Lighting], [Composition]'.",
+        gemini: "Use a natural language structure. Start by defining the role: 'Generate images in the style of {name}...' Follow with a detailed paragraph describing the medium and technique as if instructing a human artist. Integrate constraints as negative instruction.",
+        // Default fallback
+        default: "Use a clear, descriptive natural language format focusing on medium and technique."
+    };
+
+    async generateSpacePrompt(
+        params: {
+            name: string;
+            objective: string;
+            constraints: string;
+            styleDefinition: string;
+            targetModel: string;
+        },
+        textModelName: string
+    ): Promise<string> {
+        const startTime = Date.now();
+        let status: 'success' | 'error' = 'success';
+        let output = '';
+
+        try {
+            // 1. Select the correct strategy
+            // Normalize targetModel to lower case for map lookup
+            const modelKey = params.targetModel.toLowerCase().includes('flux') ? 'flux' :
+                params.targetModel.toLowerCase().includes('gemini') ? 'gemini' : 'default';
+
+            const strategy = GenerationService.STRATEGY_MAP[modelKey] || GenerationService.STRATEGY_MAP['default'];
+
+            // 2. Load the prompt template
+            let promptTemplate = DEFAULT_SPACE_PROMPT_GENERATION_PROMPT;
+
+            // 3. Inject all variables
+            const systemPrompt = promptTemplate
+                .replace('{name}', params.name)
+                .replace('{objective}', params.objective)
+                .replace('{constraints}', params.constraints)
+                .replace('{styleDefinition}', params.styleDefinition)
+                .replace('{targetModel}', params.targetModel) // Keep original string for display/context if needed
+                .replace('{strategy}', strategy);
+
+            const config: any = {
+                temperature: 0.4,
+            };
+
+            const contents = [
+                {
+                    role: 'user',
+                    parts: [{ text: "Generate the System Prompt based on the instructions." }]
+                }
+            ];
+
+            // 4. Call LLM (Gemini)
+            const response = await this.client.models.generateContentStream({
+                model: textModelName,
+                config: config as any,
+                contents: [
+                    {
+                        role: 'user',
+                        parts: [{ text: systemPrompt }]
+                    }
+                ],
+            });
+
+            let generatedPrompt = '';
+            for await (const chunk of response) {
+                if (chunk.text) {
+                    generatedPrompt += chunk.text;
+                }
+            }
+
+            output = generatedPrompt.trim();
+            return output;
+
+        } catch (error: any) {
+            status = 'error';
+            output = error.message;
+            console.error('Space Prompt Generation Error:', error);
+            throw error;
+        } finally {
+            const duration = Date.now() - startTime;
+            logAIInteraction(
+                'gemini-text',
+                textModelName,
+                { task: 'generateSpacePrompt', params },
+                output,
+                status,
+                duration
+            );
+        }
     }
 }

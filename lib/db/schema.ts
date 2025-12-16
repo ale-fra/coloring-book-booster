@@ -49,11 +49,14 @@ export const userPresets = outlinefactory.table('user_presets', {
 });
 
 // App/Global Tables
-export const appSettings = outlinefactory.table('app_settings', {
-    id: uuid('id').primaryKey().defaultRandom(),
-    maintenanceMode: boolean('maintenance_mode').default(false),
-    defaultCredits: integer('default_credits').default(250),
-    announcement: text('announcement'),
+// App/Global Tables
+// App/Global Tables
+
+export const systemConfigs = outlinefactory.table('system_configs', {
+    key: text('key').primaryKey(),
+    value: text('value').notNull(),
+    description: text('description'),
+    group: text('group'),
 });
 
 export const appModels = outlinefactory.table('app_models', {
@@ -65,4 +68,40 @@ export const appModels = outlinefactory.table('app_models', {
     type: text('type').notNull(), // 'image' | 'text'
     provider: text('provider').default('gemini'), // 'gemini' | 'replicate'
     config: jsonb('config'), // Includes temperature, topP, etc.
+});
+
+export const spaces = outlinefactory.table('spaces', {
+    id: text('id').primaryKey(),
+    userId: uuid('user_id').notNull().references(() => users.id),
+    name: text('name').notNull(),
+    objective: text('objective').notNull(),
+    theme: text('theme'),
+    constraints: text('constraints'),
+    styleDefinition: text('style_definition'),
+    prompt: text('prompt'),
+    status: text('status').default('draft'),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const spaceImages = outlinefactory.table('space_images', {
+    id: text('id').primaryKey(),
+    spaceId: text('space_id').references(() => spaces.id).notNull(),
+    name: text('name'),
+    mimeType: text('mime_type'),
+    dataUrl: text('data_url'),
+    analysis: text('analysis'),
+    createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const aiLogs = outlinefactory.table('ai_logs', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    timestamp: timestamp('timestamp').defaultNow(),
+    provider: text('provider').notNull(),
+    model: text('model'),
+    input: text('input'),
+    output: text('output'),
+    status: text('status'),
+    durationMs: integer('duration_ms'),
+    userId: uuid('user_id'),
 });

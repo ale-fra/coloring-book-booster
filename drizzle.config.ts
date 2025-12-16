@@ -8,6 +8,7 @@ export default {
     schema: './lib/db/schema.ts',
     out: './drizzle',
     dialect: 'postgresql',
+    schemaFilter: ['outlinefactory'],
     dbCredentials: {
         url: process.env.DATABASE_URL!,
     },

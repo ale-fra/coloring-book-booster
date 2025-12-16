@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getHistory, deleteHistoryItem, clearHistory } from '../actions';
-import { type HistoryItem } from '../../lib/db';
+import { getHistory, deleteHistoryItem, clearHistory } from '@/app/actions';
+import { type HistoryItem } from '@/lib/db';
 import { formatDistanceToNow } from 'date-fns';
 import { ArrowRight, Calendar, Layers, Sparkles, Trash2 } from 'lucide-react';
 

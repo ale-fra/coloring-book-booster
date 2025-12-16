@@ -1,5 +1,5 @@
 
-import { GenerationService } from "./lib/generation";
+import { GenerationService } from "../lib/generation";
 
 // Mock GoogleGenAI to simulate RESOURCE_EXHAUSTED error
 const mockGenerateContentStream = jest.fn();

@@ -1,7 +1,7 @@
 
 
-export { type GenerationResult } from './generation';
-import { GenerationResult } from './generation';
+export { type GenerationResult } from './generation-types';
+import { GenerationResult } from './generation-types';
 
 export interface Preset {
     id: string;

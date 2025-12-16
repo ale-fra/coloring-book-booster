@@ -23,7 +23,7 @@ export function SidebarLayout({ children }: { children: ReactNode }) {
             <AppSidebar isCollapsed={isCollapsed} onToggle={() => setIsCollapsed(!isCollapsed)} />
             <main
                 className={cn(
-                    "flex-1 transition-all duration-300 ease-in-out flex flex-col h-screen overflow-hidden",
+                    "flex-1 transition-all duration-300 ease-in-out flex flex-col h-screen overflow-auto",
                     isCollapsed ? "ml-16" : "ml-64"
                 )}
             >
